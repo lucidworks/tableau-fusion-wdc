@@ -6,14 +6,13 @@
 
   // Init function for connector
   myConnector.init = function init(initCallback) {
-    // tableau.log('Cookies =', Cookies.get());
     console.log('init() tableau =', tableau);
     tableau.authType = tableau.authTypeEnum.custom;
 
     // If we are in the auth phase we only want to show the UI needed for auth
-    if (tableau.phase === tableau.phaseEnum.authPhase) {
-      $("#connectorForm").css('display', 'none');
-    }
+    // if (tableau.phase === tableau.phaseEnum.authPhase) {
+    //   $("#connectorForm").css('display', 'none');
+    // }
 
     if (tableau.phase === tableau.phaseEnum.gatherDataPhase) {
       // If API that WDC is using has an enpoint that checks
@@ -22,27 +21,27 @@
       // is invalid.
     }
 
-    var accessToken = Cookies.get('accessToken');
-    console.log('Access token is =', accessToken);
-    var hasAuth = (accessToken && accessToken.length > 0) || tableau.password.length > 0;
-    updateUIWithAuthState(hasAuth);
+    // var accessToken = Cookies.get('accessToken');
+    // console.log('Access token is =', accessToken);
+    // var hasAuth = (accessToken && accessToken.length > 0) || tableau.password.length > 0;
+    // updateUIWithAuthState(hasAuth);
 
     initCallback();
 
     // If we are not in the data gathering phase, we want to store the token
     // This allows us to access the token in the data gathering phase
     if (tableau.phase === tableau.phaseEnum.interactivePhase || tableau.phase === tableau.phaseEnum.authPhase) {
-      if (hasAuth) {
-        tableau.password = accessToken;
-
-        if (tableau.phase === tableau.phaseEnum.authPhase) {
-          console.log('init() tableau.phase == authPahse, run tableau.submit()!');
-          // Auto-submit here if we are in the auth phase
-          tableau.submit();
-        }
-
-        return;
-      }
+      // if (hasAuth) {
+      //   tableau.password = accessToken;
+      //
+      //   if (tableau.phase === tableau.phaseEnum.authPhase) {
+      //     console.log('init() tableau.phase == authPahse, run tableau.submit()!');
+      //     // Auto-submit here if we are in the auth phase
+      //     tableau.submit();
+      //   }
+      //
+      //   return;
+      // }
     }
   };
 
@@ -101,10 +100,10 @@
 
   // Called when web page first loads
   $(document).ready(function() {
-    console.log('ready() Cookies =', Cookies.get());
-    var accessToken = Cookies.get("accessToken");
-    var hasAuth = accessToken && accessToken.length > 0;
-    updateUIWithAuthState(hasAuth);
+    // console.log('ready() Cookies =', Cookies.get());
+    // var accessToken = Cookies.get("accessToken");
+    // var hasAuth = accessToken && accessToken.length > 0;
+    // updateUIWithAuthState(hasAuth);
 
     // Login button click event
     $('#submitLoginButton').click(function() {
@@ -235,15 +234,15 @@
 
   // This function togglels the label shown depending
   // on whether or not the user has been authenticated
-  function updateUIWithAuthState(hasAuth) {
-    if (hasAuth) {
-      $('#loginForm').css('display', 'none');
-      $('#connectorForm').css('display', 'block');
-    } else {
-      $('#loginForm').css('display', 'block');
-      $('#connectorForm').css('display', 'none');
-    }
-  }
+  // function updateUIWithAuthState(hasAuth) {
+  //   if (hasAuth) {
+  //     $('#loginForm').css('display', 'none');
+  //     $('#connectorForm').css('display', 'block');
+  //   } else {
+  //     $('#loginForm').css('display', 'block');
+  //     $('#connectorForm').css('display', 'none');
+  //   }
+  // }
 
   // An on-click function for login to Fusion
   function doAuth(fusionUrl, username, password) {
@@ -260,33 +259,18 @@
       url: fusionUrl,
       data: JSON.stringify(sessionData),
       // data: sessionData,  // this cause 400 error Malform JSON
-      // dataType: 'text',
       processData: false,  // do not transform the data into query string, otherwise it'll cause 400 error.
       contentType: 'application/json',
-      // headers: {
-      //   'content-type': 'application/json',
-      //   'cache-control': 'no-cache'
-      // },
-      // mimeType: 'application/json',
-      // cache: false,
-      // async: true,
       crossDomain: true,
-      // jsonp: false,
       xhrFields: {
         withCredentials: true
       }
     });
-    // var loginRequest = $.ajax({
-    //   method: 'GET',
-    //   url: fusionUrl
-    // });
 
     loginRequest.done(function success(data, status, respObj) {
       console.log('success data =', data);
       console.log('status =', status);
-      console.log('respObj =', respObj);
-      console.log('respObj.getAllResponseHeaders() =', respObj.getAllResponseHeaders());
-      console.log('Cookies.get() =', Cookies.get());
+
     });
 
     loginRequest.fail(function fail(data) {
@@ -312,7 +296,9 @@
   }
 
   function buildFusionCallUrl(fusionUrl, path) {
-    return "http://localhost:8889/"+fusionUrl+path;
+    // return "http://localhost:8889/"+fusionUrl+path;  // need to go through proxy port 8889 to overcome CORS issue
+    return fusionUrl + path;
+
   }
 
   function getFromCatalogAPI(fusionUrl, path, cb) {
