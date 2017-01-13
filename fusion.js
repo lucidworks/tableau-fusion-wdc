@@ -1,8 +1,8 @@
 (function() {
   'use strict';
-	
+  
   // Create the connector object
-	var myConnector = tableau.makeConnector();
+  var myConnector = tableau.makeConnector();
 
   // Init function for connector
   myConnector.init = function init(initCallback) {
@@ -70,35 +70,34 @@
     } else {
       loadTables(config.fusionUrl, schemaCallback);
     }
-	};
+  };
 
-	myConnector.getData = function(table, doneCallback) {
+  myConnector.getData = function(table, doneCallback) {
     var config = JSON.parse(tableau.connectionData);
     var maxRows = config.maxRows;
-		getFromCatalogAPI(config.fusionUrl, "/assets/"+table.tableInfo.id+"/rows?rows="+maxRows, function(data) {
-			var obj = JSON.parse(data);
-			var tableData = [];
-			for (var i = 0; i < obj.length; i++) {
-        tableEntry = {};
-				var ref = obj[i];
-				// We can use this handy shortcut because our JSON column names match our schema's column names perfectly
-				Object.getOwnPropertyNames(ref).forEach(function(val, idx, array) {
-          // Tab doesn't like arrays ;-)
-          if (Array.isArray(ref[val])) {
-            tableEntry[val] = ref[val].join(',');
-          } else {
-            tableEntry[val] = ref[val];
-          }
-				});
-				tableData.push(tableEntry);
-			}
-			// Once we have all the data parsed, we send it to the Tableau table object
-			table.appendRows(tableData);
-			doneCallback();
-		});
-	};
+    var cols = table.tableInfo.columns.map(function(c){return c["id"];});
+    var tableName = table.tableInfo.id;
+    var url = buildFusionCallUrl(config.fusionUrl, "/catalog/fusion/assets/"+tableName+"/rows?rows="+maxRows);
+    info("Loading up to "+maxRows+" rows for table "+tableName+" with GET to: "+url);
+    oboe(url).node('![*]', function(row) {
+      var tabRow = {};
+      for (var c=0; c < cols.length; c++) {
+        var col = cols[c];
+        var colData = row[col];
+        if (colData) {
+          tabRow[col] = Array.isArray(colData) ? colData.join(',') : colData;
+        } else {
+          tabRow[col] = null; // this avoids Tableau logging about a missing column entry in the row
+        }
+      }
+      return tabRow;
+    }).done(function(tableData) {
+      table.appendRows(tableData);
+      doneCallback();
+    });
+  };
 
-	tableau.registerConnector(myConnector);
+  tableau.registerConnector(myConnector);
 
   // Called when web page first loads
   $(document).ready(function() {
@@ -367,7 +366,7 @@
           if (props.hasOwnProperty(col)) {
             var colType = props[col]["type"];
             var dataType = tableau.dataTypeEnum.string;
-            if (colType == "integer") {
+            if (colType == "integer" || colType == "int") {
               dataType = tableau.dataTypeEnum.int
             } else if (colType == "number" || colType == "float" || colType == "double") {
               dataType = tableau.dataTypeEnum.float
