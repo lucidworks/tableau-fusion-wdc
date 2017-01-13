@@ -29,9 +29,18 @@
       </div>
 
       <div class="form-group">
+        <div class="col-sm-offset-3 col-sm-4">
+          <div class="checkbox">
+            <label>
+              <input type="checkbox" id="useCorsProxy" value="http://localhost:8889/localhost:8765">Use CORS proxy (no auth)
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="form-group">
         <label for="fusionUrl" class="col-sm-3 control-label">Fusion URL *</label>
         <div class="col-sm-6">
-          <input type="url" class="form-control" id="fusionUrl" value="http://localhost:8764/api/apollo">
+          <input type="url" class="form-control" id="fusionUrl" value="http://localhost:8764">
         </div>
       </div>
 
@@ -72,6 +81,7 @@
       <div class="form-group">
         <div class="col-sm-offset-3 col-sm-3">
           <button type="button" id="submitButton" class="btn btn-success">Load Fusion Tables</button>
+          <button type="button" id="verifyLoginButton" class="btn btn-primary">Verify Login</button>
           <button type="button" id="getSessionButton" class="btn">Get Session</button>
         </div>
       </div>
