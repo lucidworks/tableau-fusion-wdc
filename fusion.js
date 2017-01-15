@@ -79,25 +79,31 @@
   myConnector.getData = function(table, doneCallback) {
     var config = JSON.parse(tableau.connectionData);
     var maxRows = config.maxRows;
-    var cols = table.tableInfo.columns.map(function(c){return c["id"];});
+    var cols = table.tableInfo.columns.map(function(c) {
+      // tab gives us back the field ids encoded
+      return {"id":decodeFieldId(c["id"]), "enc":c["id"]};
+    });
     var tableName = table.tableInfo.id;
     var url = buildFusionCallUrl(config.fusionUrl, "/catalog/fusion/assets/"+tableName+"/rows?rows="+maxRows);
     info("Loading up to "+maxRows+" rows for table "+tableName+" with GET to: "+url);
     oboe(url).node('![*]', function(row) {
       var tabRow = {};
       for (var c=0; c < cols.length; c++) {
-        var col = cols[c];
+        var col = cols[c]["id"];
+        var enc = cols[c]["enc"];
         var colData = row[col];
         if (colData) {
-          tabRow[col] = Array.isArray(colData) ? colData.join(',') : colData;
+          tabRow[enc] = Array.isArray(colData) ? colData.join(',') : colData;
         } else {
-          tabRow[col] = null; // this avoids Tableau logging about a missing column entry in the row
+          tabRow[enc] = null; // this avoids Tableau logging about a missing column entry in the row
         }
       }
       return tabRow;
     }).done(function(tableData) {
       table.appendRows(tableData);
       doneCallback();
+    }).fail(function(err) {
+      tableau.abortWithError("Load data for "+tableName+" failed due to: ("+err.statusCode+") "+err.body);
     });
   };
 
@@ -234,7 +240,8 @@
       }
 
       var maxRows = $('#maxRows').val().trim();
-      config.maxRows = (maxRows === "") ? 10000 : parseInt(maxRows);      
+      config.maxRows = (maxRows === "") ? 10000 : parseInt(maxRows);
+      config.changedOn = new Date(); // this ensures Tableau always refreshes the table list from the server on edit
 
       var configJson = JSON.stringify(config);
       tableau.connectionData = configJson;
@@ -370,7 +377,8 @@
                 dataType = tableau.dataTypeEnum.datetime;
               }
             }
-            table.columns.push({id: col, alias: col, dataType: dataType});
+            // tab public doesn't like dots in the field names
+            table.columns.push({id: encodeFieldId(col), alias: col, dataType: dataType});
           }
         }
         resolve(table);
@@ -438,10 +446,19 @@
         return $.Deferred().resolve(retryPromise);
       } else {
         console.error('Error sending SQL query, error =', err);
+        tableau.abortWithError("Failed to execute SQL ["+sql+"] due to: ("+err.status+") "+err);
       }
     });
 
     return req;
+  }
+
+  function encodeFieldId(fieldName) {
+    return fieldName.replace(/\./g,"_DOT_");
+  }
+
+  function decodeFieldId(fieldId) {
+    return fieldId.replace(/_DOT_/g,".");
   }
 
   function loadTables(fusionUrl, schemaCallback) {
