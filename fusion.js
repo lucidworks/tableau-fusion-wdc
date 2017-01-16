@@ -133,9 +133,7 @@
       var req = $.ajax({
         method: 'GET',
         url: 'http://localhost:8764/api/session',
-        xhrFields: {
-          withCredentials: true
-        }
+        xhrFields: { withCredentials: true }
       });
 
       req.done(function(data) {
@@ -272,9 +270,7 @@
       processData: false,  // do not transform the data into query string, otherwise it'll cause 400 error.
       contentType: 'application/json',
       crossDomain: true,
-      xhrFields: {
-        withCredentials: true
-      }
+      xhrFields: { withCredentials: true }
     });
 
     loginPromise.done(function success(data, status, respObj) {
@@ -316,20 +312,28 @@
     return url;
   }
 
-  function getFromCatalogAPI(fusionUrl, path, cb) {
-    var obj = new XMLHttpRequest();
-    obj.overrideMimeType("application/json");
+  // function getFromCatalogAPI(fusionUrl, path, cb) {
+  //   var obj = new XMLHttpRequest();
+  //   obj.overrideMimeType("application/json");
+  //   var callUrl = buildFusionCallUrl(fusionUrl, "/catalog/fusion" + path);
+  //   info("Sending GET request to: "+callUrl);
+  //   obj.open("GET", callUrl, true);
+  //   obj.onreadystatechange = function() {
+  //     if (obj.readyState == 4 && obj.status == "200") {
+  //       cb(obj.responseText);
+  //     } else if (obj.readyState == 4 && obj.status != "200") {
+  //       error(obj.status+": "+obj.responseText);
+  //     }
+  //   };
+  //   obj.send(null);
+  // }
+  function getFromCatalogAPI(fusionUrl, path) {
     var callUrl = buildFusionCallUrl(fusionUrl, "/catalog/fusion" + path);
-    info("Sending GET request to: "+callUrl);
-    obj.open("GET", callUrl, true);
-    obj.onreadystatechange = function() {
-      if (obj.readyState == 4 && obj.status == "200") {
-        cb(obj.responseText);
-      } else if (obj.readyState == 4 && obj.status != "200") {
-        error(obj.status+": "+obj.responseText);
-      }
-    };
-    obj.send(null);
+    return $.ajax({
+      method: 'GET',
+      url: callUrl,
+      xhrFields: { withCredentials: true }
+    });
   }
 
   function postToCatalogAPI(fusionUrl, path, toPost, cb) {
@@ -353,10 +357,41 @@
   function describeTable(fusionUrl, conn) {
     var tableName = conn.id;
     var tableSchemaPath = "/assets/" + tableName + "/schema";
-
-    return new Promise(function(resolve, reject) {
-      getFromCatalogAPI(fusionUrl, tableSchemaPath, function (json) {
-        var obj = JSON.parse(json);
+    // return new Promise(function(resolve, reject) {
+    //   getFromCatalogAPI(fusionUrl, tableSchemaPath, function (json) {
+    //     var obj = JSON.parse(json);
+    //     var table = {
+    //       id: tableName,
+    //       alias: tableName,
+    //       columns: []
+    //     };
+    //     var props = obj.properties;
+    //     for (var col in props) {
+    //       if (props.hasOwnProperty(col)) {
+    //         var colType = props[col]["type"];
+    //         var dataType = tableau.dataTypeEnum.string;
+    //         if (colType == "integer" || colType == "int") {
+    //           dataType = tableau.dataTypeEnum.int;
+    //         } else if (colType == "number" || colType == "float" || colType == "double") {
+    //           dataType = tableau.dataTypeEnum.float;
+    //         } else if (colType == "string") {
+    //           var format = props[col]["format"];
+    //           if (format == "date-time") {
+    //             dataType = tableau.dataTypeEnum.datetime;
+    //           }
+    //         }
+    //         // tab public doesn't like dots in the field names
+    //         table.columns.push({id: encodeFieldId(col), alias: col, dataType: dataType});
+    //       }
+    //     }
+    //     resolve(table);
+    //   });
+    // });
+    return getFromCatalogAPI(fusionUrl, tableSchemaPath)
+      .then(function(data) {
+        console.log('getFromCatalogAPI data =', data);
+        // var obj = JSON.parse(data);
+        var obj = data;
         var table = {
           id: tableName,
           alias: tableName,
@@ -365,15 +400,15 @@
         var props = obj.properties;
         for (var col in props) {
           if (props.hasOwnProperty(col)) {
-            var colType = props[col]["type"];
+            var colType = props[col].type;
             var dataType = tableau.dataTypeEnum.string;
-            if (colType == "integer" || colType == "int") {
+            if (colType === 'integer' || colType === 'int') {
               dataType = tableau.dataTypeEnum.int;
-            } else if (colType == "number" || colType == "float" || colType == "double") {
+            } else if (colType === 'number' || colType === 'float' || colType === 'double') {
               dataType = tableau.dataTypeEnum.float;
-            } else if (colType == "string") {
-              var format = props[col]["format"];
-              if (format == "date-time") {
+            } else if (colType === 'string') {
+              var format = props[col].format;
+              if (format === 'date-time') {
                 dataType = tableau.dataTypeEnum.datetime;
               }
             }
@@ -381,9 +416,11 @@
             table.columns.push({id: encodeFieldId(col), alias: col, dataType: dataType});
           }
         }
-        resolve(table);
+
+        return table;
+      }, function(err) {
+        console.error('Error getting data from Catalog API, err =', err);
       });
-    });
   }
 
   // function sendSQLToFusion(fusionUrl, sql, cb) {
@@ -412,17 +449,18 @@
       processData: false,
       contentType: 'application/json',
       crossDomain: true,
-      xhrFields: {
-        withCredentials: true
-      }
+      xhrFields: { withCredentials: true }
     })
-    .fail(function(err) {
+    .then(function(data) {
+      console.log('sendSQLToFusion success data =', data);
+      return data;
+    }, function(err) {
       console.log('sendSQLToFusion err =', err);
       // if err === 401 Unauthorized, try to perform auth
       if (err.status === 401) {
         console.warn('Unauthorized request, trying to login with the input username and password...');
         var retryPromise = doAuth(fusionUrl, tableau.username, tableau.password)
-          .done(function() {
+          .then(function() {
             // Resend the SQL query request
             console.info('Resending SQL query...');
             $.ajax({
@@ -432,18 +470,17 @@
               processData: false,
               contentType: 'application/json',
               crossDomain: true,
-              xhrFields: {
-                withCredentials: true
-              }
+              xhrFields: { withCredentials: true }
             })
-            .done(function(data) {
+            .then(function(data) {
               console.log('Resent SQL query successfully, data =', data);
-            })
-            .fail(function(err) {
+              return $.Deferred().resolve(data);
+            }, function(err) {
               console.error('Error resending the SQL query, error =', err);
+              return $.Deferred().reject(err);
             });
           });
-        return $.Deferred().resolve(retryPromise);
+        // return $.Deferred().resolve(retryPromise);
       } else {
         console.error('Error sending SQL query, error =', err);
         tableau.abortWithError("Failed to execute SQL ["+sql+"] due to: ("+err.status+") "+err);
@@ -481,31 +518,34 @@
     //     schemaCallback(data);
     //   });
     // });
-
     var sql = { sql:"show tables in default" };
     sendSQLToFusion(fusionUrl, sql)
-      .then(function success(data) {
-        console.log('first then data =', data);
-        var tables = [];
-        data.forEach(function(t) {
-          tables.push({id:t.tableName, alias:t.tableName});
-        });
-        tables.sort(function(lhs,rhs){return lhs.id.localeCompare(rhs.id);});
-        return tables;
-      }, function failure(data) {
-        console.log('failure() data =', data);
-
-      })
-      .then(function(data) {
-        console.log('second then data =', data);
-        var schemas = [];
-        data.forEach(function(c) {
-          schemas.push(describeTable(fusionUrl, c));
-        });
-        Promise.all(schemas).then(function(data) {
-          schemaCallback(data);
-        });
+    .then(function success(data) {
+      console.log('first then data =', data);
+      var tables = [];
+      data.forEach(function(t) {
+        tables.push({id:t.tableName, alias:t.tableName});
       });
+      tables.sort(function(lhs,rhs){return lhs.id.localeCompare(rhs.id);});
+      return tables;
+    }, function failure(data) {
+      console.log('failure() data =', data);
+
+    })
+    .then(function(data) {
+      console.log('second then data =', data);
+      var schemas = [];
+      data.forEach(function(c) {
+        schemas.push(describeTable(fusionUrl, c));
+      });
+      Promise.all(schemas).then(function(data) {
+        schemaCallback(data);
+      });
+      // $.when(schemas).then(function(data) {
+      //   console.log('schemas data =', data);
+      //   schemaCallback(data);
+      // });
+    });
   }
 })();
 
