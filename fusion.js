@@ -7,58 +7,6 @@
   // Create the connector object
   var myConnector = tableau.makeConnector();
 
-  // Init function for connector
-  myConnector.init = function init(initCallback) {
-    console.info('init() tableau =', tableau);
-
-    // Set default value to an empty obj string to avoid SyntaxError in JSON.parse()
-    // tableau.connectionData = tableau.connectionData || '{}';
-    // var config = JSON.parse(tableau.connectionData);
-    // if (config.useCorsProxy) {
-    //   tableau.authType = tableau.authTypeEnum.none;
-    // } else {
-    //   tableau.authType = tableau.authTypeEnum.custom;
-    // }
-    // TODO to get around the cors proxy issue with auth missing password. I have to specify authType = none here.
-    // tableau.authType = tableau.authTypeEnum.none;
-
-    // If we are in the auth phase we only want to show the UI needed for auth
-    // if (tableau.phase === tableau.phaseEnum.authPhase) {
-    //   $("#connectorForm").css('display', 'none');
-    // }
-
-    if (tableau.phase === tableau.phaseEnum.gatherDataPhase) {
-      // If API that WDC is using has an enpoint that checks
-      // the validity of an access token, that could be used here.
-      // Then the WDC can call tableau.abortForAuth if that access token
-      // is invalid.
-    }
-
-    // var accessToken = Cookies.get('accessToken');
-    // console.log('Access token is =', accessToken);
-    // var hasAuth = (accessToken && accessToken.length > 0) || tableau.password.length > 0;
-    // updateUIWithAuthState(hasAuth);
-
-    initCallback();
-
-    // If we are not in the data gathering phase, we want to store the token
-    // This allows us to access the token in the data gathering phase
-    if (tableau.phase === tableau.phaseEnum.interactivePhase || tableau.phase === tableau.phaseEnum.authPhase) {
-      console.log('interactivePhase OR authPhase: tableau.phase =', tableau.phase);
-      // if (hasAuth) {
-      //   tableau.password = accessToken;
-      //
-      //   if (tableau.phase === tableau.phaseEnum.authPhase) {
-      //     console.log('init() tableau.phase == authPahse, run tableau.submit()!');
-      //     // Auto-submit here if we are in the auth phase
-      //     tableau.submit();
-      //   }
-      //
-      //   return;
-      // }
-    }
-  };
-
   myConnector.getSchema = function(schemaCallback) {
     console.info('getSchema()');
     var config = JSON.parse(tableau.connectionData);
@@ -88,16 +36,24 @@
   };
 
   myConnector.getData = function(table, doneCallback) {
+    console.info('getData()');
     var config = JSON.parse(tableau.connectionData);
     var maxRows = config.maxRows;
     var cols = table.tableInfo.columns.map(function(c) {
       // tab gives us back the field ids encoded
       return {"id":decodeFieldId(c.id), "enc":c.id};
     });
+    console.log('cols =', cols);
     var tableName = table.tableInfo.id;
     var url = buildFusionCallUrl(config.fusionUrl, "/catalog/fusion/assets/"+tableName+"/rows?rows="+maxRows);
-    info("Loading up to "+maxRows+" rows for table "+tableName+" with GET to: "+url);
-    oboe(url).node('![*]', function(row) {
+    info("Loading up to "+maxRows+" rows for table "+tableName+" with GET to: "+url);    
+
+    oboe({
+      url: url,
+      method: 'GET',
+      withCredentials: true
+    })
+    .node('![*]', function(row) {
       var tabRow = {};
       for (var c=0; c < cols.length; c++) {
         var col = cols[c].id;
@@ -109,9 +65,15 @@
           tabRow[enc] = null; // this avoids Tableau logging about a missing column entry in the row
         }
       }
-      return tabRow;
+      table.appendRows([tabRow]);      
+      // return tabRow;
+
+      // By returning oboe.drop, the parsed JSON obj will be freed,
+      // allowing it to be garbage collected.
+      return oboe.drop;
     }).done(function(tableData) {
-      table.appendRows(tableData);
+      console.log('oboe done() tableData =', tableData);
+      // table.appendRows(tableData);
       doneCallback();
     }).fail(function(err) {
       tableau.abortWithError("Load data for "+tableName+" failed due to: ("+err.statusCode+") "+err.body);
@@ -253,13 +215,11 @@
       contentType: 'application/json',
       crossDomain: true,
       xhrFields: { withCredentials: true }
-    });
-
-    loginPromise.done(function success(data, status, respObj) {
+    })
+    .done(function success(data, status, respObj) {
       console.log('Login successful status =', status);
-    });
-
-    loginPromise.fail(function fail(err) {
+    })
+    .fail(function fail(err) {
       console.error('Error authenticating to Fusion, error =', err);
     });
 
