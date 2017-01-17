@@ -92,7 +92,7 @@
     var maxRows = config.maxRows;
     var cols = table.tableInfo.columns.map(function(c) {
       // tab gives us back the field ids encoded
-      return {"id":decodeFieldId(c["id"]), "enc":c["id"]};
+      return {"id":decodeFieldId(c.id), "enc":c.id};
     });
     var tableName = table.tableInfo.id;
     var url = buildFusionCallUrl(config.fusionUrl, "/catalog/fusion/assets/"+tableName+"/rows?rows="+maxRows);
@@ -100,8 +100,8 @@
     oboe(url).node('![*]', function(row) {
       var tabRow = {};
       for (var c=0; c < cols.length; c++) {
-        var col = cols[c]["id"];
-        var enc = cols[c]["enc"];
+        var col = cols[c].id;
+        var enc = cols[c].enc;
         var colData = row[col];
         if (colData) {
           tabRow[enc] = Array.isArray(colData) ? colData.join(',') : colData;
@@ -238,12 +238,10 @@
     // Use Fusion Sessions API to create a session
     // fusionUrl += '/api/session?realmName=native';
     fusionUrl += '/api/session';
-
     var sessionData = {
       username: username,
       password: password
     };
-    
     console.log('fusionUrl, username, password =', fusionUrl, username, password);
 
     var loginPromise = $.ajax({
@@ -256,11 +254,6 @@
       crossDomain: true,
       xhrFields: { withCredentials: true }
     });
-    // .then(function(status) {
-    //   console.log('Login successful, status =', status);
-    // }, function(err) {
-    //   console.error('Error authenticating to Fusion, error =', err);
-    // });
 
     loginPromise.done(function success(data, status, respObj) {
       console.log('Login successful status =', status);
@@ -301,21 +294,6 @@
     return url;
   }
 
-  // function getFromCatalogAPI(fusionUrl, path, cb) {
-  //   var obj = new XMLHttpRequest();
-  //   obj.overrideMimeType("application/json");
-  //   var callUrl = buildFusionCallUrl(fusionUrl, "/catalog/fusion" + path);
-  //   info("Sending GET request to: "+callUrl);
-  //   obj.open("GET", callUrl, true);
-  //   obj.onreadystatechange = function() {
-  //     if (obj.readyState == 4 && obj.status == "200") {
-  //       cb(obj.responseText);
-  //     } else if (obj.readyState == 4 && obj.status != "200") {
-  //       error(obj.status+": "+obj.responseText);
-  //     }
-  //   };
-  //   obj.send(null);
-  // }
   function getFromCatalogAPI(fusionUrl, path) {
     var callUrl = buildFusionCallUrl(fusionUrl, "/catalog/fusion" + path);
     return $.ajax({
@@ -347,36 +325,7 @@
     console.log('describeTable()');
     var tableName = conn.id;
     var tableSchemaPath = "/assets/" + tableName + "/schema";
-    // return new Promise(function(resolve, reject) {
-    //   getFromCatalogAPI(fusionUrl, tableSchemaPath, function (json) {
-    //     var obj = JSON.parse(json);
-    //     var table = {
-    //       id: tableName,
-    //       alias: tableName,
-    //       columns: []
-    //     };
-    //     var props = obj.properties;
-    //     for (var col in props) {
-    //       if (props.hasOwnProperty(col)) {
-    //         var colType = props[col]["type"];
-    //         var dataType = tableau.dataTypeEnum.string;
-    //         if (colType == "integer" || colType == "int") {
-    //           dataType = tableau.dataTypeEnum.int;
-    //         } else if (colType == "number" || colType == "float" || colType == "double") {
-    //           dataType = tableau.dataTypeEnum.float;
-    //         } else if (colType == "string") {
-    //           var format = props[col]["format"];
-    //           if (format == "date-time") {
-    //             dataType = tableau.dataTypeEnum.datetime;
-    //           }
-    //         }
-    //         // tab public doesn't like dots in the field names
-    //         table.columns.push({id: encodeFieldId(col), alias: col, dataType: dataType});
-    //       }
-    //     }
-    //     resolve(table);
-    //   });
-    // });
+    
     return getFromCatalogAPI(fusionUrl, tableSchemaPath)
       .then(function(data) {
         console.log('getFromCatalogAPI data =', data);
@@ -406,28 +355,12 @@
             table.columns.push({id: encodeFieldId(col), alias: col, dataType: dataType});
           }
         }
-
         return table;
       }, function(err) {
         console.error('Error getting schema data from Catalog API, err =', err);
       });
   }
 
-  // function sendSQLToFusion(fusionUrl, sql, cb) {
-  //   var obj = new XMLHttpRequest();
-  //   obj.overrideMimeType("application/json");
-  //   var callUrl = buildFusionCallUrl(fusionUrl, "/catalog/fusion/query");
-  //   obj.open("POST", callUrl, true);
-  //   obj.setRequestHeader("Content-type", "application/json");
-  //   obj.onreadystatechange = function () {
-  //     if (obj.readyState == 4 && obj.status == "200") {
-  //       cb(obj.responseText);
-  //     } else if (obj.readyState == 4 && obj.status != "200") {
-  //       error(obj.status+": "+obj.responseText);
-  //     }
-  //   };
-  //   obj.send(JSON.stringify(sql));
-  // }
   function sendSQLToFusion(fusionUrl, sql) {
     var callUrl = buildFusionCallUrl(fusionUrl, "/catalog/fusion/query");   
     console.log('callUrl, sql =', callUrl, sql);
@@ -443,14 +376,12 @@
     })
     .then(function(data) {
       console.info('sendSQLToFusion success data =', data);
-      // return data;
-      return $.Deferred().resolve(data);
+      return data;
     }, function(err) {
       console.error('sendSQLToFusion err =', err);
       // if err === 401 Unauthorized, try to perform auth
       if (err.status === 401) {
         console.warn('Unauthorized request, trying to login with the input username and password...');
-        // var retryPromise = doAuth(fusionUrl, tableau.username, tableau.password)
         return doAuth(fusionUrl, tableau.username, tableau.password)
           .then(function() {
             // Resend the SQL query request
@@ -466,20 +397,15 @@
             })
             .then(function(data) {
               console.log('Resent SQL query successfully');
-              // return $.Deferred().resolve(data);
               return data;
             }, function(err) {
               console.error('Error resending the SQL query, error =', err);
-              // return $.Deferred().reject(err);
             });
           })
-          .then(function(data) {
+          .then(function(data) {  // This will force the chained calls above to finish before returning data.
             console.info('After retry login, data =', data);
             return data;
           });
-        // return $.Deferred().resolve(retryPromise);
-        // return retryPromise;
-        // return $.when(retryPromise);
       } else {
         console.error('Error sending SQL query, error =', err);
         tableau.abortWithError("Failed to execute SQL ["+sql+"] due to: ("+err.status+") "+err);
@@ -498,25 +424,6 @@
   }
 
   function loadTables(fusionUrl, schemaCallback) {
-    // new Promise(function(resolve, reject) {
-    //   sendSQLToFusion(fusionUrl, { sql:"show tables in default" }, function(json) {
-    //     var tables = [];
-    //     JSON.parse(json).forEach(function(t) {
-    //       tables.push({id:t.tableName, alias:t.tableName});
-    //     });
-    //     tables.sort(function(lhs,rhs){return lhs.id.localeCompare(rhs.id);});
-    //     resolve(tables);
-    //   });
-    // })
-    // .then(function(data) {
-    //   var schemas = [];
-    //   data.forEach(function(c) {
-    //     schemas.push(describeTable(fusionUrl, c));
-    //   });
-    //   Promise.all(schemas).then(function(data) {
-    //     schemaCallback(data);
-    //   });
-    // });
     var sql = { sql:"show tables in default" };
     sendSQLToFusion(fusionUrl, sql)
     .then(function success(data) {
@@ -526,17 +433,9 @@
         tables.push({id:t.tableName, alias:t.tableName});
       });
       tables.sort(function(lhs,rhs){return lhs.id.localeCompare(rhs.id);});
-      // data.then(function(data) {
-      //   data.forEach(function(t) {
-      //     tables.push({id:t.tableName, alias:t.tableName});
-      //   });
-      //   tables.sort(function(lhs,rhs){return lhs.id.localeCompare(rhs.id);});
-      // });
-
       return tables;
     }, function failure(data) {
       console.log('failure() data =', data);
-
     })
     .then(function(data) {
       console.log('second then data =', data);
@@ -547,10 +446,6 @@
       Promise.all(schemas).then(function(data) {
         schemaCallback(data);
       });
-      // $.when(schemas).then(function(data) {
-      //   console.log('schemas data =', data);
-      //   schemaCallback(data);
-      // });
     });
   }
 })();
