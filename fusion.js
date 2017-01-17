@@ -10,7 +10,17 @@
   // Init function for connector
   myConnector.init = function init(initCallback) {
     console.log('init() tableau =', tableau);
-    tableau.authType = tableau.authTypeEnum.custom;
+
+    // Set default value to an empty obj string to avoid SyntaxError in JSON.parse()
+    // tableau.connectionData = tableau.connectionData || '{}';
+    // var config = JSON.parse(tableau.connectionData);
+    // if (config.useCorsProxy) {
+    //   tableau.authType = tableau.authTypeEnum.none;
+    // } else {
+    //   tableau.authType = tableau.authTypeEnum.custom;
+    // }
+    // TODO to get around the cors proxy issue with auth missing password. I have to specify authType = none here.
+    // tableau.authType = tableau.authTypeEnum.none;
 
     // If we are in the auth phase we only want to show the UI needed for auth
     // if (tableau.phase === tableau.phaseEnum.authPhase) {
@@ -33,7 +43,8 @@
 
     // If we are not in the data gathering phase, we want to store the token
     // This allows us to access the token in the data gathering phase
-    if (tableau.phase === tableau.phaseEnum.interactivePhase || tableau.phase === tableau.phaseEnum.authPhase) {      
+    if (tableau.phase === tableau.phaseEnum.interactivePhase || tableau.phase === tableau.phaseEnum.authPhase) {
+      console.log('interactivePhase OR authPhase: tableau.phase =', tableau.phase);
       // if (hasAuth) {
       //   tableau.password = accessToken;
       //
@@ -120,31 +131,6 @@
       }
     });
 
-    // Verify Login button
-    $('#verifyLoginButton').click(function() {
-      var url = $('#fusionUrl').val();
-      tableau.username = $('#fusionUsername').val();
-      tableau.password = $('#fusionPassword').val();
-      doAuth(url, tableau.username, tableau.password);
-    });   
-
-    // TEST Get Session button
-    $('#getSessionButton').click(function() {
-      var req = $.ajax({
-        method: 'GET',
-        url: 'http://localhost:8764/api/session',
-        xhrFields: { withCredentials: true }
-      });
-
-      req.done(function(data) {
-        console.log('getSession done data =',data);
-      });
-
-      req.fail(function(data) {
-        console.log('getSession fail data =', data);
-      });
-    });
-
     // Load Fusion Tables button
     $("#submitButton").click(function() {
       var config = {};
@@ -155,8 +141,6 @@
         fusionUrl = "localhost:8765/api/v1";
       }
       config.fusionUrl = fusionUrl;
-      config.fusionUsername = $('#fusionUsername').val();
-      config.fusionPassword = $('#fusionPassword').val();
       // Store credentials in tableau for easy access later
       tableau.username = $('#fusionUsername').val();
       tableau.password = $('#fusionPassword').val();
@@ -272,6 +256,11 @@
       crossDomain: true,
       xhrFields: { withCredentials: true }
     });
+    // .then(function(status) {
+    //   console.log('Login successful, status =', status);
+    // }, function(err) {
+    //   console.error('Error authenticating to Fusion, error =', err);
+    // });
 
     loginPromise.done(function success(data, status, respObj) {
       console.log('Login successful status =', status);
@@ -452,10 +441,11 @@
       xhrFields: { withCredentials: true }
     })
     .then(function(data) {
-      console.log('sendSQLToFusion success data =', data);
-      return data;
+      console.info('sendSQLToFusion success data =', data);
+      // return data;
+      return $.Deferred().resolve(data);
     }, function(err) {
-      console.log('sendSQLToFusion err =', err);
+      console.error('sendSQLToFusion err =', err);
       // if err === 401 Unauthorized, try to perform auth
       if (err.status === 401) {
         console.warn('Unauthorized request, trying to login with the input username and password...');
@@ -474,13 +464,15 @@
             })
             .then(function(data) {
               console.log('Resent SQL query successfully, data =', data);
-              return $.Deferred().resolve(data);
+              // return $.Deferred().resolve(data);
+              return data;
             }, function(err) {
               console.error('Error resending the SQL query, error =', err);
-              return $.Deferred().reject(err);
+              // return $.Deferred().reject(err);
             });
           });
         // return $.Deferred().resolve(retryPromise);
+        return retryPromise;
       } else {
         console.error('Error sending SQL query, error =', err);
         tableau.abortWithError("Failed to execute SQL ["+sql+"] due to: ("+err.status+") "+err);
@@ -521,12 +513,19 @@
     var sql = { sql:"show tables in default" };
     sendSQLToFusion(fusionUrl, sql)
     .then(function success(data) {
-      console.log('first then data =', data);
+      console.log('first then data =', data);      
       var tables = [];
       data.forEach(function(t) {
         tables.push({id:t.tableName, alias:t.tableName});
       });
       tables.sort(function(lhs,rhs){return lhs.id.localeCompare(rhs.id);});
+      // data.then(function(data) {
+      //   data.forEach(function(t) {
+      //     tables.push({id:t.tableName, alias:t.tableName});
+      //   });
+      //   tables.sort(function(lhs,rhs){return lhs.id.localeCompare(rhs.id);});
+      // });
+
       return tables;
     }, function failure(data) {
       console.log('failure() data =', data);
@@ -548,5 +547,3 @@
     });
   }
 })();
-
-
