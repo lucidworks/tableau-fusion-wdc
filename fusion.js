@@ -9,7 +9,7 @@
 
   // Init function for connector
   myConnector.init = function init(initCallback) {
-    console.log('init() tableau =', tableau);
+    console.info('init() tableau =', tableau);
 
     // Set default value to an empty obj string to avoid SyntaxError in JSON.parse()
     // tableau.connectionData = tableau.connectionData || '{}';
@@ -344,6 +344,7 @@
   }
 
   function describeTable(fusionUrl, conn) {
+    console.log('describeTable()');
     var tableName = conn.id;
     var tableSchemaPath = "/assets/" + tableName + "/schema";
     // return new Promise(function(resolve, reject) {
@@ -408,7 +409,7 @@
 
         return table;
       }, function(err) {
-        console.error('Error getting data from Catalog API, err =', err);
+        console.error('Error getting schema data from Catalog API, err =', err);
       });
   }
 
@@ -449,11 +450,12 @@
       // if err === 401 Unauthorized, try to perform auth
       if (err.status === 401) {
         console.warn('Unauthorized request, trying to login with the input username and password...');
-        var retryPromise = doAuth(fusionUrl, tableau.username, tableau.password)
+        // var retryPromise = doAuth(fusionUrl, tableau.username, tableau.password)
+        return doAuth(fusionUrl, tableau.username, tableau.password)
           .then(function() {
             // Resend the SQL query request
             console.info('Resending SQL query...');
-            $.ajax({
+            return $.ajax({
               method: 'POST',
               url: callUrl,
               data: JSON.stringify(sql),
@@ -463,16 +465,21 @@
               xhrFields: { withCredentials: true }
             })
             .then(function(data) {
-              console.log('Resent SQL query successfully, data =', data);
+              console.log('Resent SQL query successfully');
               // return $.Deferred().resolve(data);
               return data;
             }, function(err) {
               console.error('Error resending the SQL query, error =', err);
               // return $.Deferred().reject(err);
             });
+          })
+          .then(function(data) {
+            console.info('After retry login, data =', data);
+            return data;
           });
         // return $.Deferred().resolve(retryPromise);
-        return retryPromise;
+        // return retryPromise;
+        // return $.when(retryPromise);
       } else {
         console.error('Error sending SQL query, error =', err);
         tableau.abortWithError("Failed to execute SQL ["+sql+"] due to: ("+err.status+") "+err);
