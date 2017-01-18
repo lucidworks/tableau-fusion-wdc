@@ -21,12 +21,11 @@
     } else if (config.customTable) {
       console.info("Creating customTable: "+JSON.stringify(config.customTable));
       // create a new DataAsset in the Catalog API using the custom query provided by the user
-      new Promise(function (resolve, reject) {
-        postToCatalogAPI(config.fusionUrl, "/catalog/fusion/assets", config.customTable, function (json) {
-          resolve(json);
-        });
-      }).then(function (data) {
+      postToCatalogAPI(config.fusionUrl, "/catalog/fusion/assets", config.customTable)
+      .then(function success() {
         loadTables(config.fusionUrl, schemaCallback);
+      }, function failure(err) {
+        console.error('Error creating customTable, err =', err);
       });
     } else {
       console.log('getSchema() basic case, no customSql or customTable');
@@ -262,22 +261,56 @@
     });
   }
 
-  function postToCatalogAPI(fusionUrl, path, toPost, cb) {
-    var obj = new XMLHttpRequest();
-    obj.overrideMimeType("application/json");
+  function postToCatalogAPI(fusionUrl, path, postData) {
     var callUrl = buildFusionCallUrl(fusionUrl, path);
-    obj.open("POST", callUrl, true);
-    obj.setRequestHeader("Content-type", "application/json");
-    obj.onreadystatechange = function() {
-      if (obj.readyState == 4 && obj.status == "200"){
-        cb(obj.responseText);
-      } else if (obj.readyState == 4 && obj.status != "200") {
-        error(obj.status+": "+obj.responseText);
+    var req = $.ajax({
+      method: 'POST',
+      url: callUrl,
+      data: JSON.stringify(postData),
+      processData: false,
+      contentType: 'application/json',
+      crossDomain: true,
+      xhrFields: { withCredentials: true }
+    })
+    .then(function(data) {
+      console.info('postToCatalogAPI success data =', data);
+      return data;
+    }, function(err) {
+      console.error('postToCatalogAPI err =', err);
+      // if err === 401 Unauthorized, try to perform auth
+      if (err.status === 401) {
+        console.warn('Unauthorized request, trying to login with the input username and password...');
+        return doAuth(fusionUrl, tableau.username, tableau.password)
+          .then(function() {
+            // Resend the POST request
+            console.info('Resending the POST request...');
+            return $.ajax({
+              method: 'POST',
+              url: callUrl,
+              data: JSON.stringify(postData),
+              processData: false,
+              contentType: 'application/json',
+              crossDomain: true,
+              xhrFields: { withCredentials: true }
+            })
+            .then(function(data) {
+              console.log('Resent the POST request successfully');
+              return data;
+            }, function(err) {
+              console.error('Error resending the POST request, error =', err);
+            });
+          })
+          .then(function(data) {  // This will force the chained calls above to finish before returning data.
+            console.info('After retry login, data =', data);
+            return data;
+          });
+      } else {
+        console.error('Error sending the POST request, error =', err);
+        tableau.abortWithError("Failed to send the POST request ["+postData+"] due to: ("+err.status+") "+err);
       }
-    };
-    var jsonReq = JSON.stringify(toPost)
-    info("POSTing JSON request to Fusion Catalog: "+jsonReq+" at: "+callUrl);
-    obj.send(jsonReq);
+    });
+
+    return req;
   }
 
   function describeTable(fusionUrl, conn) {
