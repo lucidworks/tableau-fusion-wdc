@@ -8,11 +8,10 @@
   var myConnector = tableau.makeConnector();
 
   myConnector.getSchema = function(schemaCallback) {
-    console.info('getSchema()');
     var config = JSON.parse(tableau.connectionData);
     if (config.customSql) {
       console.info("Executing customSql: "+JSON.stringify(config.customSql));
-      sendSQLToFusion(config.fusionUrl, config.customSql)
+      postToCatalogAPI(config.fusionUrl, '/catalog/fusion/query', config.customSql)
       .then(function success() {
         loadTables(config.fusionUrl, schemaCallback);
       }, function failure(err) {
@@ -21,27 +20,24 @@
     } else if (config.customTable) {
       console.info("Creating customTable: "+JSON.stringify(config.customTable));
       // create a new DataAsset in the Catalog API using the custom query provided by the user
-      postToCatalogAPI(config.fusionUrl, "/catalog/fusion/assets", config.customTable)
+      postToCatalogAPI(config.fusionUrl, '/catalog/fusion/assets', config.customTable)
       .then(function success() {
         loadTables(config.fusionUrl, schemaCallback);
       }, function failure(err) {
         console.error('Error creating customTable, err =', err);
       });
     } else {
-      console.log('getSchema() basic case, no customSql or customTable');
       loadTables(config.fusionUrl, schemaCallback);
     }
   };
 
   myConnector.getData = function(table, doneCallback) {
-    console.info('getData()');
     var config = JSON.parse(tableau.connectionData);
     var maxRows = config.maxRows;
     var cols = table.tableInfo.columns.map(function(c) {
       // tab gives us back the field ids encoded
       return {"id":decodeFieldId(c.id), "enc":c.id};
     });
-    console.log('cols =', cols);
     var tableName = table.tableInfo.id;
     var url = buildFusionCallUrl(config.fusionUrl, "/catalog/fusion/assets/"+tableName+"/rows?rows="+maxRows);
     info("Loading up to "+maxRows+" rows for table "+tableName+" with GET to: "+url);    
@@ -64,14 +60,10 @@
         }
       }
       table.appendRows([tabRow]);      
-      // return tabRow;
-
       // By returning oboe.drop, the parsed JSON obj will be freed,
       // allowing it to be garbage collected.
       return oboe.drop;
     }).done(function(tableData) {
-      console.log('oboe done() tableData =', tableData);
-      // table.appendRows(tableData);
       doneCallback();
     }).fail(function(err) {
       tableau.abortWithError("Load data for "+tableName+" failed due to: ("+err.statusCode+") "+err.body);
@@ -187,7 +179,6 @@
 
       var configJson = JSON.stringify(config);
       tableau.connectionData = configJson;
-      console.info("connectionData: "+configJson);
       tableau.connectionName = "Lucidworks Fusion";
       tableau.submit();
     });
@@ -202,26 +193,22 @@
       username: username,
       password: password
     };
-    console.log('fusionUrl, username, password =', fusionUrl, username, password);
 
-    var loginPromise = $.ajax({
+    return $.ajax({
       method: 'POST',
       url: fusionUrl,
       data: JSON.stringify(sessionData),
-      // data: sessionData,  // this cause 400 error Malform JSON
       processData: false,  // do not transform the data into query string, otherwise it'll cause 400 error.
       contentType: 'application/json',
       crossDomain: true,
       xhrFields: { withCredentials: true }
     })
     .done(function success(data, status, respObj) {
-      console.log('Login successful status =', status);
+      console.info('Login successful status =', status);
     })
     .fail(function fail(err) {
       console.error('Error authenticating to Fusion, error =', err);
     });
-
-    return loginPromise;
   }
 
   function log(lvl, msg) {
@@ -263,7 +250,7 @@
 
   function postToCatalogAPI(fusionUrl, path, postData) {
     var callUrl = buildFusionCallUrl(fusionUrl, path);
-    var req = $.ajax({
+    return $.ajax({
       method: 'POST',
       url: callUrl,
       data: JSON.stringify(postData),
@@ -272,16 +259,15 @@
       crossDomain: true,
       xhrFields: { withCredentials: true }
     })
-    .then(function(data) {
-      console.info('postToCatalogAPI success data =', data);
+    .then(function success(data) {
       return data;
-    }, function(err) {
+    }, function failure(err) {
       console.error('postToCatalogAPI err =', err);
       // if err === 401 Unauthorized, try to perform auth
       if (err.status === 401) {
         console.warn('Unauthorized request, trying to login with the input username and password...');
         return doAuth(fusionUrl, tableau.username, tableau.password)
-          .then(function() {
+          .then(function success() {
             // Resend the POST request
             console.info('Resending the POST request...');
             return $.ajax({
@@ -294,14 +280,13 @@
               xhrFields: { withCredentials: true }
             })
             .then(function(data) {
-              console.log('Resent the POST request successfully');
+              console.info('Resent the POST request successfully');
               return data;
             }, function(err) {
               console.error('Error resending the POST request, error =', err);
             });
           })
-          .then(function(data) {  // This will force the chained calls above to finish before returning data.
-            console.info('After retry login, data =', data);
+          .then(function success(data) {  // This will force the chained calls above to finish before returning data.
             return data;
           });
       } else {
@@ -309,20 +294,14 @@
         tableau.abortWithError("Failed to send the POST request ["+postData+"] due to: ("+err.status+") "+err);
       }
     });
-
-    return req;
   }
 
   function describeTable(fusionUrl, conn) {
-    console.log('describeTable()');
     var tableName = conn.id;
     var tableSchemaPath = "/assets/" + tableName + "/schema";
     
     return getFromCatalogAPI(fusionUrl, tableSchemaPath)
-      .then(function(data) {
-        console.log('getFromCatalogAPI data =', data);
-        // var obj = JSON.parse(data);
-        var obj = data;
+      .then(function(obj) {
         var table = {
           id: tableName,
           alias: tableName,
@@ -353,60 +332,6 @@
       });
   }
 
-  function sendSQLToFusion(fusionUrl, sql) {
-    var callUrl = buildFusionCallUrl(fusionUrl, "/catalog/fusion/query");   
-    console.log('callUrl, sql =', callUrl, sql);
-
-    var req = $.ajax({
-      method: 'POST',
-      url: callUrl,
-      data: JSON.stringify(sql),
-      processData: false,
-      contentType: 'application/json',
-      crossDomain: true,
-      xhrFields: { withCredentials: true }
-    })
-    .then(function(data) {
-      console.info('sendSQLToFusion success data =', data);
-      return data;
-    }, function(err) {
-      console.error('sendSQLToFusion err =', err);
-      // if err === 401 Unauthorized, try to perform auth
-      if (err.status === 401) {
-        console.warn('Unauthorized request, trying to login with the input username and password...');
-        return doAuth(fusionUrl, tableau.username, tableau.password)
-          .then(function() {
-            // Resend the SQL query request
-            console.info('Resending SQL query...');
-            return $.ajax({
-              method: 'POST',
-              url: callUrl,
-              data: JSON.stringify(sql),
-              processData: false,
-              contentType: 'application/json',
-              crossDomain: true,
-              xhrFields: { withCredentials: true }
-            })
-            .then(function(data) {
-              console.log('Resent SQL query successfully');
-              return data;
-            }, function(err) {
-              console.error('Error resending the SQL query, error =', err);
-            });
-          })
-          .then(function(data) {  // This will force the chained calls above to finish before returning data.
-            console.info('After retry login, data =', data);
-            return data;
-          });
-      } else {
-        console.error('Error sending SQL query, error =', err);
-        tableau.abortWithError("Failed to execute SQL ["+sql+"] due to: ("+err.status+") "+err);
-      }
-    });
-
-    return req;
-  }
-
   function encodeFieldId(fieldName) {
     return fieldName.replace(/\./g,"_DOT_");
   }
@@ -417,20 +342,18 @@
 
   function loadTables(fusionUrl, schemaCallback) {
     var sql = { sql:"show tables in default" };
-    sendSQLToFusion(fusionUrl, sql)
+    postToCatalogAPI(fusionUrl, '/catalog/fusion/query', sql)
     .then(function success(data) {
-      console.log('first then data =', data);      
       var tables = [];
       data.forEach(function(t) {
         tables.push({id:t.tableName, alias:t.tableName});
       });
       tables.sort(function(lhs,rhs){return lhs.id.localeCompare(rhs.id);});
       return tables;
-    }, function failure(data) {
-      console.log('failure() data =', data);
+    }, function failure(err) {
+      console.error('Error loading tables from Catalog API, err =', err);
     })
-    .then(function(data) {
-      console.log('second then data =', data);
+    .then(function success(data) {
       var schemas = [];
       data.forEach(function(c) {
         schemas.push(describeTable(fusionUrl, c));
