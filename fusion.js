@@ -12,12 +12,11 @@
     var config = JSON.parse(tableau.connectionData);
     if (config.customSql) {
       console.info("Executing customSql: "+JSON.stringify(config.customSql));
-      new Promise(function (resolve, reject) {
-        sendSQLToFusion(config.fusionUrl, config.customSql, function (json) {
-          resolve(json);
-        });
-      }).then(function (data) {
+      sendSQLToFusion(config.fusionUrl, config.customSql)
+      .then(function success() {
         loadTables(config.fusionUrl, schemaCallback);
+      }, function failure(err) {
+        console.error('Error executing customSql, err =', err);
       });
     } else if (config.customTable) {
       console.info("Creating customTable: "+JSON.stringify(config.customTable));
@@ -100,7 +99,7 @@
       config.useCorsProxy = $('#useCorsProxy').prop('checked');      
       var fusionUrl = $('#fusionUrl').val().trim();
       if (!fusionUrl) {
-        fusionUrl = "localhost:8765/api/v1";
+        fusionUrl = "http://localhost:8889/localhost:8765";
       }
       config.fusionUrl = fusionUrl;
       // Store credentials in tableau for easy access later
