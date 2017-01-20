@@ -108,17 +108,32 @@
       loadFusionTables(config.fusionUrl).then(function(data) {
         console.log('data =', data);
         data.forEach(function(table) {
-          $('#fusionTables').append(
-            '<tr>' +
-            '<td><input type="checkbox" checked></td>' +
-            '<td>' + table.tableName + '</td>' +
-            '<td>Solr</td>' +
-            '<td>1,682</td>' +
-            '<td>' + '<input type="text" placeholder="plot_txt_en:love">' + '</td>' +
-            '<td>' + '<input type="text" placeholder="10">' + '</td>' +
-            '<td>999</td>' +
-            '</tr>'
-          );
+          var totalRows;
+
+          getFromCatalogAPI(config.fusionUrl, '/assets/' + table.tableName + '/count')
+          .then(function(data) {
+            console.log('data =', data);
+            // Catalog /count endpoint has two response formats, we need to check.
+            if (data instanceof Array) {
+              totalRows = data[0]._c0;
+            } else {
+              totalRows = data['count(1)'];
+            }
+          })
+          .then(function() {
+            $('#fusionTables').append(
+              '<tr>' +
+              '<td><input type="checkbox" checked></td>' +
+              '<td>' + table.tableName + '</td>' +
+              '<td>Solr</td>' +
+              '<td>' + totalRows + '</td>' +  // Get total rows
+              '<td>' + '<input type="text" placeholder="plot_txt_en:love">' + '</td>' +
+              '<td>' + '<input type="text" placeholder="10">' + '</td>' +
+              '<td>999</td>' +
+              '</tr>'
+            );
+          });
+
         });
       });
     });
