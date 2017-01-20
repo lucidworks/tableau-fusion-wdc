@@ -7,24 +7,37 @@
   // Create the connector object
   var myConnector = tableau.makeConnector();
 
+  myConnector.init = function(initCallback) {
+    if (tableau.phase === tableau.phaseEnum.interactivePhase) {
+      // Hide advanced options when first load
+      $('.advanced-options').css('display', 'none');
+
+      console.log('tableau =', tableau);
+    }
+
+    initCallback();
+  };
+
   myConnector.getSchema = function(schemaCallback) {
     var config = JSON.parse(tableau.connectionData);
     if (config.customSql) {
       console.info("Executing customSql: "+JSON.stringify(config.customSql));
       postToCatalogAPI(config.fusionUrl, '/catalog/fusion/query', config.customSql)
-      .then(function success() {
+      .fail(function() {
+        console.error('Error executing customSql');
+      })
+      .always(function() {
         loadTables(config.fusionUrl, schemaCallback);
-      }, function failure(err) {
-        console.error('Error executing customSql, err =', err);
       });
     } else if (config.customTable) {
       console.info("Creating customTable: "+JSON.stringify(config.customTable));
       // create a new DataAsset in the Catalog API using the custom query provided by the user
       postToCatalogAPI(config.fusionUrl, '/catalog/fusion/assets', config.customTable)
-      .then(function success() {
+      .fail(function() {
+        console.error('Error creating customTable');
+      })
+      .always(function() {
         loadTables(config.fusionUrl, schemaCallback);
-      }, function failure(err) {
-        console.error('Error creating customTable, err =', err);
       });
     } else {
       loadTables(config.fusionUrl, schemaCallback);
@@ -74,20 +87,45 @@
 
   // Called when web page first loads
   $(document).ready(function() {
-    // Use CORS proxy checkbox
-    $('#useCorsProxy').change(function() {
+    // Show Advanced Options checkbox
+    $('#showAdvanced').change(function() {
       if (this.checked) {
-        $('#fusionUrl').val('http://localhost:8889/localhost:8765');
+        $('.advanced-options').css('display', '');
       } else {
-        $('#fusionUrl').val('http://localhost:8764');
+        $('.advanced-options').css('display', 'none');
       }
     });
 
-    // Load Fusion Tables button
+    // Login + Load Fusion Tables button
+    $('#loadTablesButton').click(function() {
+      var config = {};
+      config.fusionUrl = $('#fusionUrl').val().trim();
+      // Store credentials in tableau for easy access later
+      tableau.username = $('#fusionUsername').val();
+      tableau.password = $('#fusionPassword').val();      
+      tableau.connectionData = JSON.stringify(config);
+
+      loadFusionTables(config.fusionUrl).then(function(data) {
+        console.log('data =', data);
+        data.forEach(function(table) {
+          $('#fusionTables').append(
+            '<tr>' +
+            '<td><input type="checkbox" checked></td>' +
+            '<td>' + table.tableName + '</td>' +
+            '<td>Solr</td>' +
+            '<td>1,682</td>' +
+            '<td>' + '<input type="text" placeholder="plot_txt_en:love">' + '</td>' +
+            '<td>' + '<input type="text" placeholder="10">' + '</td>' +
+            '<td>999</td>' +
+            '</tr>'
+          );
+        });
+      });
+    });
+
+    // Done button
     $("#submitButton").click(function() {
       var config = {};
-      
-      config.useCorsProxy = $('#useCorsProxy').prop('checked');      
       var fusionUrl = $('#fusionUrl').val().trim();
       if (!fusionUrl) {
         fusionUrl = "http://localhost:8889/localhost:8765";
@@ -100,7 +138,6 @@
       var customQueryName = $('#customQueryName').val().trim();
       var customQuery = $('#customQuery').val().trim();
       if (customQuery) {
-
         if (!customQueryName) {
           // TODO: better form validation here
           alert("Must provide a name for caching the results of your custom query!");
@@ -229,14 +266,7 @@
   }
 
   function buildFusionCallUrl(fusionUrl, path) {
-    var config = JSON.parse(tableau.connectionData);
-    var url;
-    if (config.useCorsProxy) {
-      url = fusionUrl + API_V1 + path;
-    } else {
-      url = fusionUrl + API_APOLLO + path;
-    }
-    return url;
+    return fusionUrl + API_APOLLO + path;
   }
 
   function getFromCatalogAPI(fusionUrl, path) {
@@ -262,7 +292,6 @@
     .then(function success(data) {
       return data;
     }, function failure(err) {
-      console.error('postToCatalogAPI err =', err);
       // if err === 401 Unauthorized, try to perform auth
       if (err.status === 401) {
         console.warn('Unauthorized request, trying to login with the input username and password...');
@@ -291,7 +320,7 @@
           });
       } else {
         console.error('Error sending the POST request, error =', err);
-        tableau.abortWithError("Failed to send the POST request ["+postData+"] due to: ("+err.status+") "+err);
+        tableau.abortWithError("Failed to send the POST request due to: ("+err.status+") "+err.responseJSON.details);
       }
     });
   }
@@ -341,7 +370,7 @@
   }
 
   function loadTables(fusionUrl, schemaCallback) {
-    var sql = { sql:"show tables in default" };
+    var sql = { sql:'show tables in default' };
     postToCatalogAPI(fusionUrl, '/catalog/fusion/query', sql)
     .then(function success(data) {
       var tables = [];
@@ -362,5 +391,11 @@
         schemaCallback(data);
       });
     });
+  }
+
+  // Load Fusion Tables
+  function loadFusionTables(fusionUrl) {
+    var sql = { sql:'show tables in default' };
+    return postToCatalogAPI(fusionUrl, '/catalog/fusion/query', sql);
   }
 })();
