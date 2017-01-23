@@ -28,44 +28,44 @@
 <body>
   <div class="container container-table">
     <!-- Logo -->
-    <img src="./fusion_lw.png" class="img-responsive center-block fusion-logo">
+    <img class="img-responsive center-block fusion-logo" src="./fusion_lw.png">
 
-    <form id="connectorForm" class="form-horizontal" role="form" action="">
+    <form class="form-horizontal" id="connectorForm" role="form" action="">
       <!-- Show Advanced Options -->
       <div class="form-group">
         <div class="col-sm-offset-3 col-sm-4 checkbox">
           <label>
-            <input type="checkbox" id="showAdvanced">Show Advanced Options
+            <input id="showAdvanced" type="checkbox">Show Advanced Options
           </label>
         </div>
       </div>
 
       <!-- Fusion URL -->
       <div class="form-group">
-        <label for="fusionUrl" class="col-sm-3 control-label">Fusion URL</label>
+        <label class="col-sm-3 control-label" for="fusionUrl">Fusion URL</label>
         <div class="col-sm-6">
-          <input type="url" class="form-control" id="fusionUrl" value="http://localhost:8764">
+          <input class="form-control" id="fusionUrl" type="url" value="http://localhost:8764">
         </div>
       </div>
 
       <!-- Login  -->
       <div class="form-group">
-        <label for="fusionUsername" class="col-sm-3 control-label">Fusion Username</label>
+        <label class="col-sm-3 control-label" for="fusionUsername">Fusion Username</label>
         <div class="col-sm-4">
-          <input type="text" class="form-control" id="fusionUsername" placeholder="Username">
+          <input class="form-control" id="fusionUsername" type="text" placeholder="Username">
         </div>
       </div>
       <div class="form-group">
-        <label for="fusionPassword" class="col-sm-3 control-label">Password</label>
+        <label class="col-sm-3 control-label" for="fusionPassword">Password</label>
         <div class="col-sm-4">
-          <input type="password" class="form-control" id="fusionPassword" placeholder="Password">
+          <input class="form-control" id="fusionPassword" type="password" placeholder="Password">
         </div>
       </div>
       
       <!-- Load Fusion Tables Button -->
       <div class="form-group">
         <div class="col-sm-offset-3 col-sm-3">
-          <button type="button" id="loadTablesButton" class="btn btn-success">Load Fusion Tables</button>
+          <button class="btn btn-success" id="loadTablesButton" type="button">Load Fusion Tables</button>
         </div>
       </div>
 
@@ -73,7 +73,7 @@
       <div class="form-group">
         <table class="table table-bordered table-striped table-hover">
           <thead>
-            <th><input type="checkbox" id="selectAllTablesCheckbox" checked></th>
+            <th><input id="selectAllTablesCheckbox" type="checkbox" checked></th>
             <th>Table</th>
             <th>Format</th>
             <th>Total Rows</th>
@@ -88,20 +88,18 @@
       <!-- Advanced Option: Custom Query  -->
       <div class="advanced-options" style="display: none;">
         <div class="form-group">
-          <label for="customQuery" class="col-sm-3 control-label">SQL or Streaming Expression</label>
+          <label class="col-sm-3 control-label" for="customQuery">SQL or Streaming Expression</label>
           <div class="col-sm-8">
             <textarea class="form-control" id="customQuery" rows="4"></textarea>
           </div>
         </div>
         <div class="form-group">
-          <label for="customQueryName" class="col-sm-3 control-label">Cache Results as</label>
+          <label class="col-sm-3 control-label" for="customQueryName">Cache Results as</label>
           <div class="col-sm-4">
-            <input type="text" class="form-control" id="customQueryName" placeholder="Type a table name here">
+            <input class="form-control" id="customQueryName" type="text" placeholder="Type a table name here">
           </div>
           <div class="col-sm-2">
-            <button type="button" id="executeQueryButton" class="btn btn-primary">
-              Execute
-            </button>
+            <button class="btn btn-primary" id="executeQueryButton" type="button">Execute</button>
           </div>
           <div class="col-sm-2">
             <div class="label label-success" style="display: none;" id="executeQuerySuccess">Success!</div>
@@ -109,16 +107,16 @@
           </div>
         </div>
         <div class="form-group">
-          <label for="maxRows" class="col-sm-3 control-label">Max Rows</label>
+          <label class="col-sm-3 control-label" for="maxRows">Max Rows</label>
           <div class="col-sm-4">
-            <input type="text" class="form-control" id="maxRows" value="10000">
+            <input class="form-control" id="maxRows" type="text" value="10000">
           </div>
         </div>
       </div>
 
       <div class="form-group">
         <div class="col-sm-offset-3 col-sm-2">
-          <button type="button" id="submitButton" class="btn btn-success">Done</button>
+          <button class="btn btn-success" id="submitButton" type="button">Done</button>
         </div>
       </div>
     </form>
