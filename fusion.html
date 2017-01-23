@@ -62,10 +62,14 @@
         </div>
       </div>
       
-      <!-- Load Fusion Tables Button -->
+      <!-- Load Tables Button -->
       <div class="form-group">
-        <div class="col-sm-offset-3 col-sm-3">
-          <button class="btn btn-success" id="loadTablesButton" type="button">Load Fusion Tables</button>
+        <div class="col-sm-offset-3 col-sm-2">
+          <button class="btn btn-success" id="loadTablesButton" type="button">Load Tables</button>
+        </div>
+        <div class="col-sm-2">
+          <div class="label label-success" style="display: none;" id="loadTablesSuccess">Success!</div>
+          <div class="label label-danger" style="display: none;" id="loadTablesFail">Error!</div>
         </div>
       </div>
 
@@ -103,7 +107,7 @@
           </div>
           <div class="col-sm-2">
             <div class="label label-success" style="display: none;" id="executeQuerySuccess">Success!</div>
-            <div class="label label-danger" style="display: none;" id="executeQueryFailure">Error!</div>
+            <div class="label label-danger" style="display: none;" id="executeQueryFail">Error!</div>
           </div>
         </div>
         <div class="form-group">

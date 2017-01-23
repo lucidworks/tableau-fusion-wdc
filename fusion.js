@@ -99,6 +99,10 @@
 
     // Login + Load Fusion Tables button
     $('#loadTablesButton').click(function() {
+      // Clear status labels
+      $('#loadTablesSuccess').css('display', 'none');
+      $('#loadTablesFail').css('display', 'none');
+
       var config = {};
       config.fusionUrl = $('#fusionUrl').val().trim();
       // Store credentials in tableau for easy access later
@@ -147,8 +151,12 @@
           Promise.all(countPromises).then(function() {
             // TODO send 'finish loading table' event
             console.info('Finished loading all tables.');
-
+            $('#loadTablesSuccess').css('display', '');
           });
+        })
+        .fail(function() {
+          console.error('Error loading tables.');
+          $('#loadTablesFail').css('display', '');
         });
     });
     // TESTING
@@ -164,7 +172,7 @@
     $('#executeQueryButton').click(function() {
       // Clear status labels
       $('#executeQuerySuccess').css('display', 'none');
-      $('#executeQueryFailure').css('display', 'none');
+      $('#executeQueryFail').css('display', 'none');
 
       var config = {};
       config.fusionUrl = $('#fusionUrl').val().trim();
@@ -259,7 +267,7 @@
           })
           .fail(function() {
             console.error('Error executing customSql');
-            $('#executeQueryFailure').css('display', '');
+            $('#executeQueryFail').css('display', '');
           });
           
       } else if (config.customTable) {
@@ -272,11 +280,12 @@
           })
           .fail(function() {
             console.error('Error creating customTable');
-            $('#executeQueryFailure').css('display', '');
+            $('#executeQueryFail').css('display', '');
           });
           
       } else {
         console.warn('No customSql or customTable to execute.');
+        $('#executeQueryFail').css('display', '');
       }
 
     }); // End of Execute button
