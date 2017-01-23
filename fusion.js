@@ -3,6 +3,7 @@
   
   var API_APOLLO = '/api/apollo';
   var API_V1 = '/api/v1';
+  var selectedTables = [];  // Selected Fusion tables in the list that will be sent to Tableau
 
   // Create the connector object
   var myConnector = tableau.makeConnector();
@@ -105,53 +106,77 @@
       tableau.password = $('#fusionPassword').val();      
       tableau.connectionData = JSON.stringify(config);
 
-      loadFusionTables(config.fusionUrl).then(function(data) {
-        console.log('data =', data);
-        data.forEach(function(table) {
-          var totalRows;
+      // Clear table list before loading
+      var fusionTables = $('#fusionTables');
+      fusionTables.html('');
 
-          getFromCatalogAPI(config.fusionUrl, '/assets/' + table.tableName + '/count')
-          .then(function(data) {
-            console.log('data =', data);
-            // Catalog /count endpoint has two response formats, we need to check.
-            if (data instanceof Array) {
-              totalRows = data[0]._c0;
-            } else {
-              totalRows = data['count(1)'];
-            }
-          })
-          .then(function() {
-            $('#fusionTables').append(
-              '<tr>' +
-              '<td><input type="checkbox" checked></td>' +
-              '<td>' + table.tableName + '</td>' +
-              '<td>Solr</td>' +
-              '<td>' + totalRows + '</td>' +  // Get total rows
-              '<td>' + '<input type="text" placeholder="plot_txt_en:love">' + '</td>' +
-              '<td>' + '<input type="text" placeholder="10">' + '</td>' +
-              '<td>999</td>' +
-              '</tr>'
-            );
+      loadFusionTables(config.fusionUrl)
+        .then(function(data) {
+          console.log('data =', data);
+          var countPromises = [];
+          data.forEach(function(table) {
+            var totalRows;
+            // Get total rows count from each table
+            var promise = getFromCatalogAPI(config.fusionUrl, '/assets/' + table.tableName + '/count')
+            .then(function(data) {
+              console.log('data =', data);
+              // Catalog /count endpoint has two response formats, we need to check.
+              if (data instanceof Array) {
+                totalRows = data[0]._c0;
+              } else {
+                totalRows = data['count(1)'];
+              }
+            })
+            .then(function() {
+              $('#fusionTables').append(
+                '<tr>' +
+                '<td><input type="checkbox" checked></td>' +
+                '<td>' + table.tableName + '</td>' +
+                '<td>Solr</td>' +
+                '<td>' + totalRows + '</td>' +  // Get total rows
+                '<td>' + '<input type="text" placeholder="plot_txt_en:love">' + '</td>' +
+                '<td>' + '<input type="text" class="sample" placeholder="10">' + '</td>' +
+                '<td class="max-rows">' + totalRows + '</td>' +
+                '</tr>'
+              );
+            });
+            countPromises.push(promise);
           });
 
-        });
-      });
-    });
+          // After finished loading all tables and metadata
+          Promise.all(countPromises).then(function() {
+            // TODO send 'finish loading table' event
+            console.info('Finished loading all tables.');
 
-    // Done button
-    $("#submitButton").click(function() {
+          });
+        });
+    });
+    // TESTING
+    $('#fusionTables')
+      .on('click', '.max-rows', function() {
+        console.log('$(this).text() =', $(this).text());
+      })
+      .on('blur', '.sample', function() {
+        console.log('$(this).text() =', $(this).text());
+      });
+
+    // Execute button
+    $('#executeQueryButton').click(function() {
+      // Clear status labels
+      $('#executeQuerySuccess').css('display', 'none');
+      $('#executeQueryFailure').css('display', 'none');
+
       var config = {};
-      var fusionUrl = $('#fusionUrl').val().trim();
-      if (!fusionUrl) {
-        fusionUrl = "http://localhost:8889/localhost:8765";
-      }
-      config.fusionUrl = fusionUrl;
+      config.fusionUrl = $('#fusionUrl').val().trim();
       // Store credentials in tableau for easy access later
       tableau.username = $('#fusionUsername').val();
-      tableau.password = $('#fusionPassword').val();
+      tableau.password = $('#fusionPassword').val();      
+      tableau.connectionData = JSON.stringify(config);
 
       var customQueryName = $('#customQueryName').val().trim();
       var customQuery = $('#customQuery').val().trim();
+
+      // This if block is for parsing the customQuery
       if (customQuery) {
         if (!customQueryName) {
           // TODO: better form validation here
@@ -225,6 +250,50 @@
         }
       }
 
+      if (config.customSql) {
+        console.info("Executing customSql: "+JSON.stringify(config.customSql));
+        postToCatalogAPI(config.fusionUrl, '/catalog/fusion/query', config.customSql)
+          .done(function(data) {
+            console.log('customSql data = ', data);
+            $('#executeQuerySuccess').css('display', '');
+          })
+          .fail(function() {
+            console.error('Error executing customSql');
+            $('#executeQueryFailure').css('display', '');
+          });
+          
+      } else if (config.customTable) {
+        console.info("Creating customTable: "+JSON.stringify(config.customTable));
+        // create a new DataAsset in the Catalog API using the custom query provided by the user
+        postToCatalogAPI(config.fusionUrl, '/catalog/fusion/assets', config.customTable)
+          .done(function(data) {
+            console.log('customTable data =', data);
+            $('#executeQuerySuccess').css('display', '');
+          })
+          .fail(function() {
+            console.error('Error creating customTable');
+            $('#executeQueryFailure').css('display', '');
+          });
+          
+      } else {
+        console.warn('No customSql or customTable to execute.');
+      }
+
+    }); // End of Execute button
+
+    // Done button
+    $("#submitButton").click(function() {
+      var config = {};
+      var fusionUrl = $('#fusionUrl').val().trim();
+      if (!fusionUrl) {
+        fusionUrl = "http://localhost:8889/localhost:8765";
+      }
+      config.fusionUrl = fusionUrl;
+      // Store credentials in tableau for easy access later
+      tableau.username = $('#fusionUsername').val();
+      tableau.password = $('#fusionPassword').val();
+
+      // TODO remove maxRows, no need anymore.
       var maxRows = $('#maxRows').val().trim();
       config.maxRows = (maxRows === "") ? 10000 : parseInt(maxRows);
       config.changedOn = new Date(); // this ensures Tableau always refreshes the table list from the server on edit
@@ -234,7 +303,7 @@
       tableau.connectionName = "Lucidworks Fusion";
       tableau.submit();
     });
-  });
+  }); // End of Done button
 
   // An on-click function for login to Fusion
   function doAuth(fusionUrl, username, password) {
@@ -311,7 +380,7 @@
       if (err.status === 401) {
         console.warn('Unauthorized request, trying to login with the input username and password...');
         return doAuth(fusionUrl, tableau.username, tableau.password)
-          .then(function success() {
+          .then(function() {
             // Resend the POST request
             console.info('Resending the POST request...');
             return $.ajax({
@@ -323,11 +392,12 @@
               crossDomain: true,
               xhrFields: { withCredentials: true }
             })
-            .then(function(data) {
+            .then(function success(data) {
               console.info('Resent the POST request successfully');
               return data;
-            }, function(err) {
+            }, function failure(err) {
               console.error('Error resending the POST request, error =', err);
+              return err;
             });
           })
           .then(function success(data) {  // This will force the chained calls above to finish before returning data.
@@ -336,6 +406,7 @@
       } else {
         console.error('Error sending the POST request, error =', err);
         tableau.abortWithError("Failed to send the POST request due to: ("+err.status+") "+err.responseJSON.details);
+        return err;
       }
     });
   }
@@ -384,28 +455,29 @@
     return fieldId.replace(/_DOT_/g,".");
   }
 
+  // This function is used in getSchema() to load selected Fusion tables.
   function loadTables(fusionUrl, schemaCallback) {
     var sql = { sql:'show tables in default' };
     postToCatalogAPI(fusionUrl, '/catalog/fusion/query', sql)
-    .then(function success(data) {
-      var tables = [];
-      data.forEach(function(t) {
-        tables.push({id:t.tableName, alias:t.tableName});
+      .then(function success(data) {
+        var tables = [];
+        data.forEach(function(t) {
+          tables.push({id:t.tableName, alias:t.tableName});
+        });
+        tables.sort(function(lhs,rhs){return lhs.id.localeCompare(rhs.id);});
+        return tables;
+      }, function failure(err) {
+        console.error('Error loading tables from Catalog API, err =', err);
+      })
+      .then(function success(data) {
+        var schemas = [];
+        data.forEach(function(table) {
+          schemas.push(describeTable(fusionUrl, table));
+        });
+        Promise.all(schemas).then(function(data) {
+          schemaCallback(data);
+        });
       });
-      tables.sort(function(lhs,rhs){return lhs.id.localeCompare(rhs.id);});
-      return tables;
-    }, function failure(err) {
-      console.error('Error loading tables from Catalog API, err =', err);
-    })
-    .then(function success(data) {
-      var schemas = [];
-      data.forEach(function(c) {
-        schemas.push(describeTable(fusionUrl, c));
-      });
-      Promise.all(schemas).then(function(data) {
-        schemaCallback(data);
-      });
-    });
   }
 
   // Load Fusion Tables

@@ -15,6 +15,14 @@
       height: 50px;
       margin-bottom: 2em;
     }
+    /* The table style does NOT WORK yet */
+    /*table {
+      height: 300px;
+    }
+    tbody {
+      height: 120px;
+      overflow-y: auto;
+    }*/
   </style>
 </head>
 <body>
@@ -73,26 +81,7 @@
             <th>Sample %</th>
             <th>Max Rows to Load</th>
           </thead>
-          <tbody id="fusionTables">
-            <!--<tr>
-              <td><input type="checkbox" checked></td>
-              <td>movies</td>
-              <td>Solr</td>
-              <td>1,682</td>
-              <td>plot_txt_en:love</td>
-              <td></td>
-              <td>147</td>
-            </tr>
-            <tr>
-              <td><input type="checkbox" checked></td>
-              <td>ratings</td>
-              <td>Solr</td>
-              <td>100,000</td>
-              <td></td>
-              <td>10</td>
-              <td>10,000</td>
-            </tr>-->
-          </tbody>
+          <tbody id="fusionTables"></tbody>
         </table>
       </div>
 
@@ -110,7 +99,13 @@
             <input type="text" class="form-control" id="customQueryName" placeholder="Type a table name here">
           </div>
           <div class="col-sm-2">
-            <button type="button" id="executeQueryButton" class="btn btn-primary">Execute</button>
+            <button type="button" id="executeQueryButton" class="btn btn-primary">
+              Execute
+            </button>
+          </div>
+          <div class="col-sm-2">
+            <div class="label label-success" style="display: none;" id="executeQuerySuccess">Success!</div>
+            <div class="label label-danger" style="display: none;" id="executeQueryFailure">Error!</div>
           </div>
         </div>
         <div class="form-group">
