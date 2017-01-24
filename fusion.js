@@ -8,14 +8,6 @@
   // Create the connector object
   var myConnector = tableau.makeConnector();
 
-  // myConnector.init = function(initCallback) {
-  //   if (tableau.phase === tableau.phaseEnum.interactivePhase) {
-  //     console.log('tableau =', tableau);
-  //   }
-
-  //   initCallback();
-  // };
-
   myConnector.getSchema = function(schemaCallback) {
     console.log('getSchema()');
 
@@ -99,6 +91,8 @@
     // });
     $('#showAdvanced').change(showAdvancedOptions);
 
+    $('#selectAllTablesCheckbox').change(toggleAllTablesCheckbox);
+
     // Load Tables button
     $('#loadTablesButton').click(function() {
       // Clear status labels
@@ -118,7 +112,7 @@
 
       loadFusionTables(config.fusionUrl)
         .then(function(data) {
-          console.log('data =', data);
+          // console.log('data =', data);
           var countPromises = [];
           data.forEach(function(table) {
             var totalRows;
@@ -135,6 +129,7 @@
               })
               .then(function() {
                 var totalRowsColumnId = table.tableName + 'TotalRows';
+                var filtersColumnId = table.tableName + 'Filters';
                 var sampleColumnId = table.tableName + 'Sample';
                 var maxRowsColumnId = table.tableName + 'MaxRows';
                 var maxRows = totalRows < 10000 ? totalRows : 10000;
@@ -142,17 +137,18 @@
                 // Add a row of metadata to the table list
                 $('#fusionTables').append(
                   '<tr>' +
-                  '<td><input type="checkbox" checked></td>' +
+                  '<td><input class="select-table" type="checkbox" checked></td>' +
                   '<td>' + table.tableName + '</td>' +
                   '<td>Solr</td>' +
                   '<td id="' + totalRowsColumnId + '">' + totalRows + '</td>' +  // Get total rows
-                  '<td>' + '<input type="text" placeholder="plot_txt_en:love">' + '</td>' +
+                  '<td>' + '<input type="text" placeholder="plot_txt_en:love" id="' + filtersColumnId + '">' + '</td>' +
                   '<td>' + '<input class="sample" type="number" min="1" max="100" placeholder="10" id="' + sampleColumnId + '">' + '</td>' +
                   '<td class="max-rows" id="' + maxRowsColumnId + '">' + maxRows + '</td>' +
                   '</tr>'
                 );
                 
                 var totalRowsColumnObj = $('#' + totalRowsColumnId);
+                var filtersColumnObj = $('#' + filtersColumnId);
                 var sampleColumnObj = $('#' + sampleColumnId);
                 var maxRowsColumnObj = $('#' + maxRowsColumnId);
                 // Attach event listener to Sample column to compute 'Max Rows to Load' value
@@ -344,6 +340,15 @@
       $('.advanced-options').css('display', '');
     } else {
       $('.advanced-options').css('display', 'none');
+    }
+  }
+
+  // Toggle the all tables checkbox for the table list
+  function toggleAllTablesCheckbox() {
+    if (this.checked) {
+      $('.select-table').prop('checked', true);
+    } else {
+      $('.select-table').prop('checked', false);
     }
   }
 
