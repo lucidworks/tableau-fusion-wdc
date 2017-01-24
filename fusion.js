@@ -8,18 +8,17 @@
   // Create the connector object
   var myConnector = tableau.makeConnector();
 
-  myConnector.init = function(initCallback) {
-    if (tableau.phase === tableau.phaseEnum.interactivePhase) {
-      // Hide advanced options when first load
-      $('.advanced-options').css('display', 'none');
+  // myConnector.init = function(initCallback) {
+  //   if (tableau.phase === tableau.phaseEnum.interactivePhase) {
+  //     console.log('tableau =', tableau);
+  //   }
 
-      console.log('tableau =', tableau);
-    }
-
-    initCallback();
-  };
+  //   initCallback();
+  // };
 
   myConnector.getSchema = function(schemaCallback) {
+    console.log('getSchema()');
+
     var config = JSON.parse(tableau.connectionData);
     if (config.customSql) {
       console.info("Executing customSql: "+JSON.stringify(config.customSql));
@@ -46,6 +45,8 @@
   };
 
   myConnector.getData = function(table, doneCallback) {
+    console.log('getData()');
+
     var config = JSON.parse(tableau.connectionData);
     var maxRows = config.maxRows;
     var cols = table.tableInfo.columns.map(function(c) {
@@ -89,15 +90,16 @@
   // Called when web page first loads
   $(document).ready(function() {
     // Show Advanced Options checkbox
-    $('#showAdvanced').change(function() {
-      if (this.checked) {
-        $('.advanced-options').css('display', '');
-      } else {
-        $('.advanced-options').css('display', 'none');
-      }
-    });
+    // $('#showAdvanced').change(function() {
+    //   if (this.checked) {
+    //     $('.advanced-options').css('display', '');
+    //   } else {
+    //     $('.advanced-options').css('display', 'none');
+    //   }
+    // });
+    $('#showAdvanced').change(showAdvancedOptions);
 
-    // Login + Load Fusion Tables button
+    // Load Tables button
     $('#loadTablesButton').click(function() {
       // Clear status labels
       $('#loadTablesSuccess').css('display', 'none');
@@ -122,28 +124,48 @@
             var totalRows;
             // Get total rows count from each table
             var promise = getFromCatalogAPI(config.fusionUrl, '/assets/' + table.tableName + '/count')
-            .then(function(data) {
-              console.log('data =', data);
-              // Catalog /count endpoint has two response formats, we need to check.
-              if (data instanceof Array) {
-                totalRows = data[0]._c0;
-              } else {
-                totalRows = data['count(1)'];
-              }
-            })
-            .then(function() {
-              $('#fusionTables').append(
-                '<tr>' +
-                '<td><input type="checkbox" checked></td>' +
-                '<td>' + table.tableName + '</td>' +
-                '<td>Solr</td>' +
-                '<td>' + totalRows + '</td>' +  // Get total rows
-                '<td>' + '<input type="text" placeholder="plot_txt_en:love">' + '</td>' +
-                '<td>' + '<input type="text" class="sample" placeholder="10">' + '</td>' +
-                '<td class="max-rows">' + totalRows + '</td>' +
-                '</tr>'
-              );
-            });
+              .then(function(count) {
+                // Catalog /count endpoint has two response formats, we need to check.
+                if (count instanceof Array) {
+                  totalRows = count[0]._c0;
+                } else {
+                  totalRows = count['count(1)'];
+                }
+
+              })
+              .then(function() {
+                var totalRowsColumnId = table.tableName + 'TotalRows';
+                var sampleColumnId = table.tableName + 'Sample';
+                var maxRowsColumnId = table.tableName + 'MaxRows';
+                var maxRows = totalRows < 10000 ? totalRows : 10000;
+
+                // Add a row of metadata to the table list
+                $('#fusionTables').append(
+                  '<tr>' +
+                  '<td><input type="checkbox" checked></td>' +
+                  '<td>' + table.tableName + '</td>' +
+                  '<td>Solr</td>' +
+                  '<td id="' + totalRowsColumnId + '">' + totalRows + '</td>' +  // Get total rows
+                  '<td>' + '<input type="text" placeholder="plot_txt_en:love">' + '</td>' +
+                  '<td>' + '<input class="sample" type="number" min="1" max="100" placeholder="10" id="' + sampleColumnId + '">' + '</td>' +
+                  '<td class="max-rows" id="' + maxRowsColumnId + '">' + maxRows + '</td>' +
+                  '</tr>'
+                );
+                
+                var totalRowsColumnObj = $('#' + totalRowsColumnId);
+                var sampleColumnObj = $('#' + sampleColumnId);
+                var maxRowsColumnObj = $('#' + maxRowsColumnId);
+                // Attach event listener to Sample column to compute 'Max Rows to Load' value
+                sampleColumnObj.blur(function() {
+                  if (sampleColumnObj.val()) {
+                    // Compute 'Max Rows to Load'
+                    var maxValue = Math.round(totalRowsColumnObj.text() * sampleColumnObj.val() / 100);
+                    maxRowsColumnObj.text(maxValue);
+                  } else {  // If sample value is undefined, set max rows to default value.
+                    maxRowsColumnObj.text(maxRows);
+                  }
+                });
+              });
             countPromises.push(promise);
           });
 
@@ -158,15 +180,17 @@
           console.error('Error loading tables.');
           $('#loadTablesFail').css('display', '');
         });
-    });
+    }); // End of Load Tables button
+
     // TESTING
-    $('#fusionTables')
-      .on('click', '.max-rows', function() {
-        console.log('$(this).text() =', $(this).text());
-      })
-      .on('blur', '.sample', function() {
-        console.log('$(this).text() =', $(this).text());
-      });
+    // $('#fusionTables')
+    //   .on('click', '.max-rows', function() {
+    //     console.log('$(this).text() =', $(this).text());
+    //   })
+    //   .on('blur', '.sample', function() {
+    //     console.log('$(this).text() =', $(this).text());
+    //   });
+    // End of TESTING
 
     // Execute button
     $('#executeQueryButton').click(function() {
@@ -311,8 +335,17 @@
       tableau.connectionData = configJson;
       tableau.connectionName = "Lucidworks Fusion";
       tableau.submit();
-    });
-  }); // End of Done button
+    }); // End of Done button
+  }); // End of document.ready() 
+
+  // Show Advanced Options checkbox
+  function showAdvancedOptions() {
+    if (this.checked) {
+      $('.advanced-options').css('display', '');
+    } else {
+      $('.advanced-options').css('display', 'none');
+    }
+  }
 
   // An on-click function for login to Fusion
   function doAuth(fusionUrl, username, password) {
