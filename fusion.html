@@ -13,7 +13,8 @@
   <style>
     .fusion-logo {
       height: 50px;
-      margin-bottom: 2em;
+      margin-top: 1em;
+      margin-bottom: 1em;
     }
     /* The table style does NOT WORK yet */
     /*table {
@@ -29,7 +30,17 @@
   <div class="container container-table">
     <!-- Logo -->
     <img class="img-responsive center-block fusion-logo" src="./fusion_lw.png">
-
+    <!-- README -->
+    <div class="panel panel-default">
+      <div class="panel-body">
+        Please input username and password, then click on Load Tables button. You can select or unselect tables that
+        you want to load into Tableau by using the checkbox in the table list. The Filters column accepts filter query
+        (fq) that you can apply to the table to filter the results. The Sample % column accepts a number from 1 to 100
+        where you can specify the maximum number of rows (in term of the percentage of the total rows) that you want
+        to load into Tableau.
+        NOTES: You need to select at least one table.
+      </div>
+    </div>
     <form class="form-horizontal" id="connectorForm" role="form" action="">
       <!-- Show Advanced Options -->
       <div class="form-group">
@@ -114,7 +125,7 @@
 
       <div class="form-group">
         <div class="col-sm-offset-3 col-sm-2">
-          <button class="btn btn-success" id="submitButton" type="button">Done</button>
+          <button class="btn btn-success" id="submitButton" type="button" disabled>Done</button>
         </div>
       </div>
     </form>

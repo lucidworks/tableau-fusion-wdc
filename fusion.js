@@ -231,7 +231,9 @@
           Promise.all(countPromises).then(function() {
             // TODO send 'finish loading table' event
             console.info('Finished loading all tables.');
+            
             $('#loadTablesSuccess').css('display', '');
+            $('#submitButton').prop('disabled', '');
           });
         })
         .fail(function() {
