@@ -101,8 +101,9 @@
 
   // Called when web page first loads
   $(document).ready(function() {
-    $('#showAdvanced').change(showAdvancedOptions);
-    $('#selectAllTablesCheckbox').change(toggleAllTablesCheckbox);
+    $('#showAdvanced').change(showAdvancedChangeCB);
+    $('#selectAllTablesCheckbox').change(selectAllTablesCheckboxChangeCB);
+    $('#fusionUsername').blur(fusionUsernameBlurCB);
 
     // Load Tables button
     $('#loadTablesButton').click(function() {
@@ -419,8 +420,8 @@
     }); // End of Submit button
   }); // End of document.ready()
 
-  // Show Advanced Options checkbox
-  function showAdvancedOptions() {
+  // Callback for Show Advanced Options checkbox
+  function showAdvancedChangeCB() {
     if (this.checked) {
       $('.advanced-options').css('display', '');
     } else {
@@ -428,8 +429,8 @@
     }
   }
 
-  // Toggle the all tables checkbox for the table list
-  function toggleAllTablesCheckbox() {
+  // Callback for Toggle the all tables checkbox for the table list
+  function selectAllTablesCheckboxChangeCB() {
     var isChecked = this.checked;
     if (isChecked) {
       $('.select-table').prop('checked', true);
@@ -443,6 +444,16 @@
       $.each(selectedTables, function(idx, t) {
         t.selected = false;
       });
+    }
+  }
+
+  // Callback for Fusion Username input
+  function fusionUsernameBlurCB() {
+    // Enable the Load Tables button when the username is not empty
+    if ($(this).val()) {
+      $('#loadTablesButton').prop('disabled', false);
+    } else {
+      $('#loadTablesButton').prop('disabled', true);
     }
   }
 
