@@ -109,6 +109,12 @@
       // Clear status labels
       $('#loadTablesSuccess').css('display', 'none');
       $('#loadTablesFail').css('display', 'none');
+      // Show progress bar and reset value to 0%
+      $('#fusionTablesProgressBar')
+        .css('width', '0%')
+        .attr('aria-valuenow', 0)
+        .text('0%');
+      $('.progress').css('display', '');
 
       var config = {};
       config.fusionUrl = $('#fusionUrl').val().trim();
@@ -125,6 +131,10 @@
         .then(function(data) {
           // console.log('data =', data);
           var countPromises = [];
+          var tableTotalNum = data.length;
+          var iterNum = 1;  // Cannot use tableIndex from data.forEach()
+                            // because the tableIndex order is not guarantee due to promise call.
+
           data.forEach(function(table) {
             var totalRows;
             // Get total rows count from each table
@@ -222,6 +232,15 @@
                     });
                   }
                 });
+
+                // Update fusionTablesProgressBar                
+                var progressBarPercent = iterNum / tableTotalNum * 100;
+                iterNum++;
+
+                $('#fusionTablesProgressBar')
+                  .css('width', progressBarPercent+'%')
+                  .attr('aria-valuenow', progressBarPercent)
+                  .text(progressBarPercent+'%');
               });
 
             countPromises.push(promise);
@@ -234,6 +253,15 @@
             
             $('#loadTablesSuccess').css('display', '');
             $('#submitButton').prop('disabled', '');
+            // Update fusionTablesProgressBar
+            $('#fusionTablesProgressBar')
+              .css('width', '100%')
+              .attr('aria-valuenow', 100)
+              .text('100%');
+            // Set one second delay to hide the progress bar for a nice visual ;)
+            setTimeout(function() {
+              $('.progress').css('display', 'none');
+            }, 1000);
           });
         })
         .fail(function() {
