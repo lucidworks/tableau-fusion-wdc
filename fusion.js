@@ -3,51 +3,71 @@
   
   var API_APOLLO = '/api/apollo';
   var API_V1 = '/api/v1';
-  var selectedTables = [];  // Selected Fusion tables in the list that will be sent to Tableau
+  var DEFAULT_MAX_ROWS = 10000;
+  // Selected Fusion tables in the list that will be sent to Tableau along with each table's settings
+  var selectedTables = [];
+
+  function Table(name, selected, filters, sample, maxRows) {
+    this.name = name;
+    this.id = name;     // Required by Tableau getSchema()
+    this.alias = name;  // Required by Tableau getSchema()
+    this.selected = selected || true;
+    this.filters = filters || '';
+    this.sample = sample || 0;
+    this.maxRows = maxRows || DEFAULT_MAX_ROWS;
+  }
 
   // Create the connector object
   var myConnector = tableau.makeConnector();
 
   myConnector.getSchema = function(schemaCallback) {
     console.log('getSchema()');
-
     var config = JSON.parse(tableau.connectionData);
-    if (config.customSql) {
-      console.info("Executing customSql: "+JSON.stringify(config.customSql));
-      postToCatalogAPI(config.fusionUrl, '/catalog/fusion/query', config.customSql)
-      .fail(function() {
-        console.error('Error executing customSql');
-      })
-      .always(function() {
-        loadTables(config.fusionUrl, schemaCallback);
-      });
-    } else if (config.customTable) {
-      console.info("Creating customTable: "+JSON.stringify(config.customTable));
-      // create a new DataAsset in the Catalog API using the custom query provided by the user
-      postToCatalogAPI(config.fusionUrl, '/catalog/fusion/assets', config.customTable)
-      .fail(function() {
-        console.error('Error creating customTable');
-      })
-      .always(function() {
-        loadTables(config.fusionUrl, schemaCallback);
-      });
-    } else {
-      loadTables(config.fusionUrl, schemaCallback);
+
+    // TODO what to do when there's no selected table?
+    if (config.selectedTables.length < 1) {
+      schemaCallback([]);
+      return;
     }
+
+    var schemas = [];
+    config.selectedTables.forEach(function(table) {
+      if (table.selected) {
+        console.log('selectedTables table =', table);
+        schemas.push(describeTable(config.fusionUrl, table));
+      }
+    });
+    Promise.all(schemas).then(function(data) {
+      console.log('Promise.all data =', data);
+      schemaCallback(data);
+    });
   };
 
   myConnector.getData = function(table, doneCallback) {
-    console.log('getData()');
+    console.log('getData() table =', table);
 
     var config = JSON.parse(tableau.connectionData);
-    var maxRows = config.maxRows;
     var cols = table.tableInfo.columns.map(function(c) {
       // tab gives us back the field ids encoded
       return {"id":decodeFieldId(c.id), "enc":c.id};
     });
     var tableName = table.tableInfo.id;
-    var url = buildFusionCallUrl(config.fusionUrl, "/catalog/fusion/assets/"+tableName+"/rows?rows="+maxRows);
-    info("Loading up to "+maxRows+" rows for table "+tableName+" with GET to: "+url);    
+    var url = '';
+    
+    config.selectedTables.forEach(function(t) {
+      if (tableName === t.id) {
+        var fq = '';
+        var rows = '';
+        if (t.filters) { fq = 'fq=' + t.filters; }
+        if (t.sample > 0) {
+          rows = 'sample=' + t.sample;
+        } else {
+          rows = 'rows=' + DEFAULT_MAX_ROWS;
+        }
+        url = buildFusionCallUrl(config.fusionUrl, "/catalog/fusion/assets/" + tableName + "/rows?" + rows + '&' + fq);
+        console.info("Loading up to " + t.maxRows + " rows for table " + tableName + " with GET to: "+ url);
+      }
+    });
 
     oboe({
       url: url,
@@ -81,16 +101,7 @@
 
   // Called when web page first loads
   $(document).ready(function() {
-    // Show Advanced Options checkbox
-    // $('#showAdvanced').change(function() {
-    //   if (this.checked) {
-    //     $('.advanced-options').css('display', '');
-    //   } else {
-    //     $('.advanced-options').css('display', 'none');
-    //   }
-    // });
     $('#showAdvanced').change(showAdvancedOptions);
-
     $('#selectAllTablesCheckbox').change(toggleAllTablesCheckbox);
 
     // Load Tables button
@@ -125,19 +136,23 @@
                 } else {
                   totalRows = count['count(1)'];
                 }
-
               })
               .then(function() {
+                var selectTableCheckboxId = table.tableName + 'Checkbox';
                 var totalRowsColumnId = table.tableName + 'TotalRows';
                 var filtersColumnId = table.tableName + 'Filters';
                 var sampleColumnId = table.tableName + 'Sample';
                 var maxRowsColumnId = table.tableName + 'MaxRows';
                 var maxRows = totalRows < 10000 ? totalRows : 10000;
 
+                // Add each table as obj to the array for tracking, the table name is unique.
+                var tableObj = new Table(table.tableName);
+                selectedTables.push(tableObj);
+
                 // Add a row of metadata to the table list
                 $('#fusionTables').append(
                   '<tr>' +
-                  '<td><input class="select-table" type="checkbox" checked></td>' +
+                  '<td><input class="select-table" type="checkbox" checked id="' + selectTableCheckboxId + '"></td>' +
                   '<td>' + table.tableName + '</td>' +
                   '<td>Solr</td>' +
                   '<td id="' + totalRowsColumnId + '">' + totalRows + '</td>' +  // Get total rows
@@ -147,21 +162,68 @@
                   '</tr>'
                 );
                 
+                var selectTableCheckboxObj = $('#' + selectTableCheckboxId);
                 var totalRowsColumnObj = $('#' + totalRowsColumnId);
                 var filtersColumnObj = $('#' + filtersColumnId);
                 var sampleColumnObj = $('#' + sampleColumnId);
                 var maxRowsColumnObj = $('#' + maxRowsColumnId);
+                
+                // Attach event listener to Select table checkbox
+                selectTableCheckboxObj.change(function() {
+                  var isChecked = this.checked;
+                  $.each(selectedTables, function(idx, t) {
+                    if (t.name === table.tableName) {
+                      if (isChecked) { t.selected = true; }
+                      else { t.selected = false; }
+                    }
+                  });
+                  // console.log('selectedTables =', selectedTables);
+                });
+
+                // Attache event listener to Filters column
+                filtersColumnObj.blur(function() {
+                  // Update filters in selectedTables[]
+                  if (filtersColumnObj.val()) {
+                    $.each(selectedTables, function(idx, t) {
+                      if (t.name === table.tableName) {
+                        t.filters = filtersColumnObj.val();
+                      }
+                    });
+                  } else {
+                    $.each(selectedTables, function(idx, t) {
+                      if (t.name === table.tableName) {
+                        t.filters = '';
+                      }
+                    });
+                  }
+                });
+
                 // Attach event listener to Sample column to compute 'Max Rows to Load' value
                 sampleColumnObj.blur(function() {
                   if (sampleColumnObj.val()) {
                     // Compute 'Max Rows to Load'
                     var maxValue = Math.round(totalRowsColumnObj.text() * sampleColumnObj.val() / 100);
                     maxRowsColumnObj.text(maxValue);
+                    // Update the sample value and maxRows value in selectedTables[]
+                    $.each(selectedTables, function(idx, t) {
+                      if (t.name === table.tableName) {
+                        t.sample = sampleColumnObj.val() / 100;
+                        t.maxRows = maxValue;
+                      }
+                    });
                   } else {  // If sample value is undefined, set max rows to default value.
                     maxRowsColumnObj.text(maxRows);
+                    // Update the sample value and maxRows value in selectedTables[]
+                    $.each(selectedTables, function(idx, t) {
+                      if (t.name === table.tableName) {
+                        t.sample = 0;
+                        t.maxRows = maxRows;
+                      }
+                    });
                   }
                 });
               });
+
             countPromises.push(promise);
           });
 
@@ -177,16 +239,6 @@
           $('#loadTablesFail').css('display', '');
         });
     }); // End of Load Tables button
-
-    // TESTING
-    // $('#fusionTables')
-    //   .on('click', '.max-rows', function() {
-    //     console.log('$(this).text() =', $(this).text());
-    //   })
-    //   .on('blur', '.sample', function() {
-    //     console.log('$(this).text() =', $(this).text());
-    //   });
-    // End of TESTING
 
     // Execute button
     $('#executeQueryButton').click(function() {
@@ -310,29 +362,32 @@
 
     }); // End of Execute button
 
-    // Done button
+    // Submit button
     $("#submitButton").click(function() {
       var config = {};
       var fusionUrl = $('#fusionUrl').val().trim();
       if (!fusionUrl) {
-        fusionUrl = "http://localhost:8889/localhost:8765";
+        fusionUrl = 'http://localhost:8764';
       }
       config.fusionUrl = fusionUrl;
       // Store credentials in tableau for easy access later
       tableau.username = $('#fusionUsername').val();
       tableau.password = $('#fusionPassword').val();
 
-      // TODO remove maxRows, no need anymore.
-      var maxRows = $('#maxRows').val().trim();
-      config.maxRows = (maxRows === "") ? 10000 : parseInt(maxRows);
-      config.changedOn = new Date(); // this ensures Tableau always refreshes the table list from the server on edit
+      config.changedOn = new Date();  // This ensures Tableau always refreshes the table list from the server on edit
+      config.selectedTables = [];  // This array will only store selected tables
+      selectedTables.forEach(function(table) {
+        if (table.selected) {
+          config.selectedTables.push(table);
+        }
+      });
 
       var configJson = JSON.stringify(config);
       tableau.connectionData = configJson;
       tableau.connectionName = "Lucidworks Fusion";
       tableau.submit();
-    }); // End of Done button
-  }); // End of document.ready() 
+    }); // End of Submit button
+  }); // End of document.ready()
 
   // Show Advanced Options checkbox
   function showAdvancedOptions() {
@@ -345,10 +400,19 @@
 
   // Toggle the all tables checkbox for the table list
   function toggleAllTablesCheckbox() {
-    if (this.checked) {
+    var isChecked = this.checked;
+    if (isChecked) {
       $('.select-table').prop('checked', true);
+      // Update all tables to be selected
+      $.each(selectedTables, function(idx, t) {
+        t.selected = true;
+      });
     } else {
       $('.select-table').prop('checked', false);
+      // Update all tables to be unselected
+      $.each(selectedTables, function(idx, t) {
+        t.selected = false;
+      });
     }
   }
 
@@ -379,6 +443,8 @@
     });
   }
 
+  ////////////////////////////////////////////////////
+  // TODO Remove these log functions, no need anymore
   function log(lvl, msg) {
     var logMsg = lvl+": "+msg;
     console.log(logMsg);
@@ -395,6 +461,7 @@
   function warn(msg) {
     log("WARN", msg);
   }
+  ///////////////////////////////////////////////////
 
   function buildFusionCallUrl(fusionUrl, path) {
     return fusionUrl + API_APOLLO + path;
@@ -406,6 +473,38 @@
       method: 'GET',
       url: callUrl,
       xhrFields: { withCredentials: true }
+    })
+    .then(function success(data) {
+      return data;
+    }, function failure(err) {
+      // if err === 401 Unauthorized, try to perform auth
+      if (err.status === 401) {
+        console.warn('Unauthorized request, trying to login with the input username and password...');
+        return doAuth(fusionUrl, tableau.username, tableau.password)
+          .then(function() {
+            // Resend the GET request
+            console.info('Resending the GET request...');
+            return $.ajax({
+              method: 'GET',
+              url: callUrl,
+              xhrFields: { withCredentials: true }
+            })
+            .then(function success(data) {
+              console.info('Resent the GET request successfully');
+              return data;
+            }, function failure(err) {
+              console.error('Error resending the GET request, error =', err);
+              return err;
+            });
+          })
+          .then(function success(data) {  // This will force the chained calls above to finish before returning data.
+            return data;
+          });
+      } else {
+        console.error('Error sending the GET request, error =', err);
+        tableau.abortWithError("Failed to send the GET request due to: ("+err.status+") "+err.responseJSON.details);
+        return err;
+      }
     });
   }
 
@@ -509,7 +608,7 @@
       .then(function success(data) {
         var tables = [];
         data.forEach(function(t) {
-          tables.push({id:t.tableName, alias:t.tableName});
+          tables.push({id:t.tableName, alias:t.tableName}); 
         });
         tables.sort(function(lhs,rhs){return lhs.id.localeCompare(rhs.id);});
         return tables;
