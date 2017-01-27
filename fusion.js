@@ -33,12 +33,15 @@
     var schemas = [];
     config.selectedTables.forEach(function(table) {
       if (table.selected) {
-        console.log('selectedTables table =', table);
+        // console.log('selectedTables table =', table);
+        console.log('selectedTables table.id =' + table.id);
         schemas.push(describeTable(config.fusionUrl, table));
       }
     });
     Promise.all(schemas).then(function(data) {
-      console.log('Promise.all data =', data);
+      // TODO print data[] as text individually
+      // console.log('Promise.all data =', data);
+      console.log('Promise.all data =' + data);
       schemaCallback(data);
     });
   };
@@ -240,7 +243,7 @@
                 });
 
                 // Update fusionTablesProgressBar                
-                var progressBarPercent = iterNum / tableTotalNum * 100;
+                var progressBarPercent = Math.round(iterNum / tableTotalNum * 100);
                 iterNum++;
 
                 $('#fusionTablesProgressBar')
@@ -419,6 +422,7 @@
       });
 
       var configJson = JSON.stringify(config);
+      // tableau.log('tableau.connectionData = ' + configJson);
       tableau.connectionData = configJson;
       tableau.connectionName = "Lucidworks Fusion";
       tableau.submit();
@@ -482,7 +486,7 @@
       xhrFields: { withCredentials: true }
     })
     .done(function success(data, status, respObj) {
-      console.info('Login successful status =', status);
+      console.info('Login successful status =' + status);
     })
     .fail(function fail(err) {
       console.error('Error authenticating to Fusion, error =', err);
