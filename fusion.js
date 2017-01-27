@@ -59,7 +59,9 @@
         var fq = '';
         var rows = '';
         if (t.filters) { fq = 'fq=' + t.filters; }
-        if (t.sample > 0) {
+        if (t.sample === 1) {  // If sample value is 1 (or 100%), use param: rows=<numberOfAllRows> instead of sample param.
+          rows = 'rows=' + t.maxRows;
+        } else if (t.sample > 0) {
           rows = 'sample=' + t.sample;
         } else {
           rows = 'rows=' + DEFAULT_MAX_ROWS;
@@ -93,6 +95,9 @@
     }).done(function(tableData) {
       doneCallback();
     }).fail(function(err) {
+      // TODO this could fail due to HTTP error 401 Unauthorized sometimes.
+      // Need to FIX!
+
       tableau.abortWithError("Load data for "+tableName+" failed due to: ("+err.statusCode+") "+err.body);
     });
   };
@@ -253,7 +258,7 @@
             console.info('Finished loading all tables.');
             
             $('#loadTablesSuccess').css('display', '');
-            $('#submitButton').prop('disabled', '');
+            $('#submitButton').prop('disabled', false);
             // Update fusionTablesProgressBar
             $('#fusionTablesProgressBar')
               .css('width', '100%')
@@ -590,9 +595,12 @@
           .then(function success(data) {  // This will force the chained calls above to finish before returning data.
             return data;
           });
+      } else if (err.status === 0) {  // Problem connecting to Fusion or SQL engine
+        console.error('Failed to connect to Fusion server or SQL Engine, error =', err);
+        tableau.abortWithError('Failed to connect to Fusion server or SQL Engine. Please check your settings and connection.');
       } else {
         console.error('Error sending the POST request, error =', err);
-        tableau.abortWithError("Failed to send the POST request due to: ("+err.status+") "+err.responseJSON.details);
+        tableau.abortWithError("Failed to send the POST request due to: (status = " + err.status + ").");
         return err;
       }
     });
