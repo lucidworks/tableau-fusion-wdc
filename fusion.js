@@ -22,7 +22,7 @@
 
   myConnector.getSchema = function(schemaCallback) {
     console.log('getSchema()');
-    var config = JSON.parse(tableau.connectionData);
+    var config = getTableauConnectionData();
 
     // TODO what to do when there's no selected table?
     if (config.selectedTables.length < 1) {
@@ -48,8 +48,7 @@
 
   myConnector.getData = function(table, doneCallback) {
     console.log('getData() table =', table);
-
-    var config = JSON.parse(tableau.connectionData);
+    var config = getTableauConnectionData();
     var cols = table.tableInfo.columns.map(function(c) {
       // tab gives us back the field ids encoded
       return {"id":decodeFieldId(c.id), "enc":c.id};
@@ -129,8 +128,9 @@
       config.fusionUrl = $('#fusionUrl').val().trim();
       // Store credentials in tableau for easy access later
       tableau.username = $('#fusionUsername').val();
-      tableau.password = $('#fusionPassword').val();      
-      tableau.connectionData = JSON.stringify(config);
+      tableau.password = $('#fusionPassword').val();
+      config.realmName = $('#fusionRealm').val();
+      setTableauConnectionData(config);
 
       // Clear table list before loading
       var fusionTables = $('#fusionTables');
@@ -289,8 +289,8 @@
       config.fusionUrl = $('#fusionUrl').val().trim();
       // Store credentials in tableau for easy access later
       tableau.username = $('#fusionUsername').val();
-      tableau.password = $('#fusionPassword').val();      
-      tableau.connectionData = JSON.stringify(config);
+      tableau.password = $('#fusionPassword').val();
+      setTableauConnectionData(config);
 
       var customQueryName = $('#customQueryName').val().trim();
       var customQuery = $('#customQuery').val().trim();
@@ -412,7 +412,7 @@
       // Store credentials in tableau for easy access later
       tableau.username = $('#fusionUsername').val();
       tableau.password = $('#fusionPassword').val();
-
+      config.realmName = $('#fusionRealm').val();
       config.changedOn = new Date();  // This ensures Tableau always refreshes the table list from the server on edit
       config.selectedTables = [];  // This array will only store selected tables
       selectedTables.forEach(function(table) {
@@ -421,9 +421,7 @@
         }
       });
 
-      var configJson = JSON.stringify(config);
-      // tableau.log('tableau.connectionData = ' + configJson);
-      tableau.connectionData = configJson;
+      setTableauConnectionData(config);
       tableau.connectionName = "Lucidworks Fusion";
       tableau.submit();
     }); // End of Submit button
@@ -467,10 +465,10 @@
   }
 
   // An on-click function for login to Fusion
-  function doAuth(fusionUrl, username, password) {
+  function doAuth(fusionUrl, username, password, realmName) {
+    realmName = realmName || 'native';
     // Use Fusion Sessions API to create a session
-    // fusionUrl += '/api/session?realmName=native';
-    fusionUrl += '/api/session';
+    fusionUrl += '/api/session?realmName=' + realmName;
     var sessionData = {
       username: username,
       password: password
@@ -517,7 +515,16 @@
     return fusionUrl + API_APOLLO + path;
   }
 
+  function getTableauConnectionData() {
+    return JSON.parse(tableau.connectionData);
+  }
+
+  function setTableauConnectionData(config) {
+    tableau.connectionData = JSON.stringify(config);
+  }
+
   function getFromCatalogAPI(fusionUrl, path) {
+    var config = getTableauConnectionData();
     var callUrl = buildFusionCallUrl(fusionUrl, "/catalog/fusion" + path);
     return $.ajax({
       method: 'GET',
@@ -530,7 +537,7 @@
       // if err === 401 Unauthorized, try to perform auth
       if (err.status === 401) {
         console.warn('Unauthorized request, trying to login with the input username and password...');
-        return doAuth(fusionUrl, tableau.username, tableau.password)
+        return doAuth(fusionUrl, tableau.username, tableau.password, config.realmName)
           .then(function() {
             // Resend the GET request
             console.info('Resending the GET request...');
@@ -559,6 +566,7 @@
   }
 
   function postToCatalogAPI(fusionUrl, path, postData) {
+    var config = getTableauConnectionData();
     var callUrl = buildFusionCallUrl(fusionUrl, path);
     return $.ajax({
       method: 'POST',
@@ -575,7 +583,7 @@
       // if err === 401 Unauthorized, try to perform auth
       if (err.status === 401) {
         console.warn('Unauthorized request, trying to login with the input username and password...');
-        return doAuth(fusionUrl, tableau.username, tableau.password)
+        return doAuth(fusionUrl, tableau.username, tableau.password, config.realmName)
           .then(function() {
             // Resend the POST request
             console.info('Resending the POST request...');
