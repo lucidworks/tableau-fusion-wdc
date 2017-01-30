@@ -21,7 +21,7 @@
   var myConnector = tableau.makeConnector();
 
   myConnector.getSchema = function(schemaCallback) {
-    console.log('getSchema()');
+    console.info('getSchema()');
     var config = getTableauConnectionData();
 
     // TODO what to do when there's no selected table?
@@ -33,21 +33,19 @@
     var schemas = [];
     config.selectedTables.forEach(function(table) {
       if (table.selected) {
-        // console.log('selectedTables table =', table);
-        console.log('selectedTables table.id =' + table.id);
+        // console.log('selectedTables table.id =' + table.id);
         schemas.push(describeTable(config.fusionUrl, table));
       }
     });
     Promise.all(schemas).then(function(data) {
       // TODO print data[] as text individually
       // console.log('Promise.all data =', data);
-      console.log('Promise.all data =' + data);
       schemaCallback(data);
     });
   };
 
   myConnector.getData = function(table, doneCallback) {
-    console.log('getData() table =', table);
+    console.info('getData() table =', table);
     var config = getTableauConnectionData();
     var cols = table.tableInfo.columns.map(function(c) {
       // tab gives us back the field ids encoded
@@ -78,7 +76,35 @@
       method: 'GET',
       withCredentials: true
     })
-    .node('![*]', function(row) {
+    .node('![*]', parseRow)
+    .done(function(tableData) {
+      doneCallback();
+    })
+    .fail(function(err) {
+      if (err.statusCode === 401) {  // Try to do auth and retry getting data
+        console.warn('Unauthorized request, trying to login with the input username and password...');
+        return doAuth(config.fusionUrl, tableau.username, tableau.password, config.realmName)
+          .then(function() {
+            console.info('Retrying getting data from Fusion...');
+            oboe({
+              url: url,
+              method: 'GET',
+              withCredentials: true
+            })
+            .node('![*]', parseRow)
+            .done(function(tableData) {
+              doneCallback();
+            })
+            .fail(function(err2) {
+              tableau.abortWithError("Load data for "+tableName+" failed due to: ("+err2.statusCode+") "+err2.body);
+            });
+          });
+      } else {
+        tableau.abortWithError("Load data for "+tableName+" failed due to: ("+err.statusCode+") "+err.body);
+      }
+    });
+
+    function parseRow(row) {
       var tabRow = {};
       for (var c=0; c < cols.length; c++) {
         var col = cols[c].id;
@@ -94,50 +120,7 @@
       // By returning oboe.drop, the parsed JSON obj will be freed,
       // allowing it to be garbage collected.
       return oboe.drop;
-    })
-    .done(function(tableData) {
-      doneCallback();
-    })
-    .fail(function(err) {
-      // TODO this could fail due to HTTP error 401 Unauthorized sometimes.
-      if (err.statusCode === 401) {  // Try to do auth and retry getting data
-        console.warn('Unauthorized request, trying to login with the input username and password...');
-        return doAuth(config.fusionUrl, tableau.username, tableau.password, config.realmName)
-          .then(function() {
-            console.info('Retrying getting data from Fusion...');
-            oboe({
-              url: url,
-              method: 'GET',
-              withCredentials: true
-            })
-            .node('![*]', function(row) {
-              var tabRow = {};
-              for (var c=0; c < cols.length; c++) {
-                var col = cols[c].id;
-                var enc = cols[c].enc;
-                var colData = row[col];
-                if (colData) {
-                  tabRow[enc] = Array.isArray(colData) ? colData.join(',') : colData;
-                } else {
-                  tabRow[enc] = null; // this avoids Tableau logging about a missing column entry in the row
-                }
-              }
-              table.appendRows([tabRow]);      
-              // By returning oboe.drop, the parsed JSON obj will be freed,
-              // allowing it to be garbage collected.
-              return oboe.drop;
-            })
-            .done(function(tableData) {
-              doneCallback();
-            })
-            .fail(function(err2) {
-              tableau.abortWithError("Load data for "+tableName+" failed due to: ("+err2.statusCode+") "+err2.body);
-            });
-          });
-      } else {
-        tableau.abortWithError("Load data for "+tableName+" failed due to: ("+err.statusCode+") "+err.body);
-      }
-    });
+    }
   };
 
   tableau.registerConnector(myConnector);
@@ -234,7 +217,6 @@
                       else { t.selected = false; }
                     }
                   });
-                  // console.log('selectedTables =', selectedTables);
                 });
 
                 // Attache event listener to Filters column
@@ -295,9 +277,7 @@
 
           // After finished loading all tables and metadata
           Promise.all(countPromises).then(function() {
-            // TODO send 'finish loading table' event
-            console.info('Finished loading all tables.');
-            
+            console.info('Finished loading all tables.');            
             $('#loadTablesSuccess').css('display', '');
             $('#submitButton').prop('disabled', false);
             // Update fusionTablesProgressBar
@@ -440,7 +420,6 @@
         console.warn('No customSql or customTable to execute.');
         $('#executeQueryFail').css('display', '');
       }
-
     }); // End of Execute button
 
     // Submit button
@@ -533,26 +512,6 @@
     });
   }
 
-  ////////////////////////////////////////////////////
-  // TODO Remove these log functions, no need anymore
-  function log(lvl, msg) {
-    var logMsg = lvl+": "+msg;
-    console.log(logMsg);
-  }
-
-  function info(msg) {
-    log("INFO", msg);
-  }
-
-  function error(msg) {
-    log("ERROR", msg);
-  }
-
-  function warn(msg) {
-    log("WARN", msg);
-  }
-  ///////////////////////////////////////////////////
-
   function buildFusionCallUrl(fusionUrl, path) {
     return fusionUrl + API_APOLLO + path;
   }
@@ -568,49 +527,47 @@
   function getFromCatalogAPI(fusionUrl, path) {
     var config = getTableauConnectionData();
     var callUrl = buildFusionCallUrl(fusionUrl, "/catalog/fusion" + path);
-    return $.ajax({
+    var req = {
       method: 'GET',
       url: callUrl,
       xhrFields: { withCredentials: true }
-    })
-    .then(function success(data) {
-      return data;
-    }, function failure(err) {
-      // if err === 401 Unauthorized, try to perform auth
-      if (err.status === 401) {
-        console.warn('Unauthorized request, trying to login with the input username and password...');
-        return doAuth(fusionUrl, tableau.username, tableau.password, config.realmName)
-          .then(function() {
-            // Resend the GET request
-            console.info('Resending the GET request...');
-            return $.ajax({
-              method: 'GET',
-              url: callUrl,
-              xhrFields: { withCredentials: true }
+    };
+
+    return $.ajax(req)
+      .then(function success(data) {
+        return data;
+      }, function failure(err) {
+        // if err === 401 Unauthorized, try to perform auth
+        if (err.status === 401) {
+          console.warn('Unauthorized request, trying to login with the input username and password...');
+          return doAuth(fusionUrl, tableau.username, tableau.password, config.realmName)
+            .then(function() {
+              // Resend the GET request
+              console.info('Resending the GET request...');
+              return $.ajax(req)
+                .then(function success(data) {
+                  console.info('Resent the GET request successfully');
+                  return data;
+                }, function failure(err) {
+                  console.error('Error resending the GET request, error =', err);
+                  return err;
+                });
             })
-            .then(function success(data) {
-              console.info('Resent the GET request successfully');
+            .then(function success(data) {  // This will force the chained calls above to finish before returning data.
               return data;
-            }, function failure(err) {
-              console.error('Error resending the GET request, error =', err);
-              return err;
             });
-          })
-          .then(function success(data) {  // This will force the chained calls above to finish before returning data.
-            return data;
-          });
-      } else {
-        console.error('Error sending the GET request, error =', err);
-        tableau.abortWithError("Failed to send the GET request due to: ("+err.status+") "+err.responseJSON.details);
-        return err;
-      }
-    });
+        } else {
+          console.error('Error sending the GET request, error =', err);
+          tableau.abortWithError("Failed to send the GET request due to: ("+err.status+") "+err.responseJSON.details);
+          return err;
+        }
+      });
   }
 
   function postToCatalogAPI(fusionUrl, path, postData) {
     var config = getTableauConnectionData();
     var callUrl = buildFusionCallUrl(fusionUrl, path);
-    return $.ajax({
+    var req = {
       method: 'POST',
       url: callUrl,
       data: JSON.stringify(postData),
@@ -618,46 +575,39 @@
       contentType: 'application/json',
       crossDomain: true,
       xhrFields: { withCredentials: true }
-    })
-    .then(function success(data) {
-      return data;
-    }, function failure(err) {
-      // if err === 401 Unauthorized, try to perform auth
-      if (err.status === 401) {
-        console.warn('Unauthorized request, trying to login with the input username and password...');
-        return doAuth(fusionUrl, tableau.username, tableau.password, config.realmName)
-          .then(function() {
-            // Resend the POST request
-            console.info('Resending the POST request...');
-            return $.ajax({
-              method: 'POST',
-              url: callUrl,
-              data: JSON.stringify(postData),
-              processData: false,
-              contentType: 'application/json',
-              crossDomain: true,
-              xhrFields: { withCredentials: true }
+    };
+
+    return $.ajax(req)
+      .then(function success(data) {
+        return data;
+      }, function failure(err) {
+        if (err.status === 401) {  // Unauthorized err, try to perform auth
+          console.warn('Unauthorized request, trying to login with the input username and password...');
+          return doAuth(fusionUrl, tableau.username, tableau.password, config.realmName)
+            .then(function() {
+              // Resend the POST request
+              console.info('Resending the POST request...');
+              return $.ajax(req)
+                .then(function success(data) {
+                  console.info('Resent the POST request successfully');
+                  return data;
+                }, function failure(err) {
+                  console.error('Error resending the POST request, error =', err);
+                  return err;
+                });
             })
-            .then(function success(data) {
-              console.info('Resent the POST request successfully');
+            .then(function success(data) {  // This will force the chained calls above to finish before returning data.
               return data;
-            }, function failure(err) {
-              console.error('Error resending the POST request, error =', err);
-              return err;
             });
-          })
-          .then(function success(data) {  // This will force the chained calls above to finish before returning data.
-            return data;
-          });
-      } else if (err.status === 0) {  // Problem connecting to Fusion or SQL engine
-        console.error('Failed to connect to Fusion server or SQL Engine, error =', err);
-        tableau.abortWithError('Failed to connect to Fusion server or SQL Engine. Please check your settings and connection.');
-      } else {
-        console.error('Error sending the POST request, error =', err);
-        tableau.abortWithError("Failed to send the POST request due to: (status = " + err.status + ").");
-        return err;
-      }
-    });
+        } else if (err.status === 0) {  // Problem connecting to Fusion or SQL engine
+          console.error('Failed to connect to Fusion server or SQL Engine, error =', err);
+          tableau.abortWithError('Failed to connect to Fusion server or SQL Engine. Please check your settings and connection.');
+        } else {
+          console.error('Error sending the POST request, error =', err);
+          tableau.abortWithError("Failed to send the POST request due to: (status = " + err.status + ").");
+          return err;
+        }
+      });
   }
 
   function describeTable(fusionUrl, conn) {
@@ -703,31 +653,6 @@
   function decodeFieldId(fieldId) {
     return fieldId.replace(/_DOT_/g,".");
   }
-
-  // This function is used in getSchema() to load selected Fusion tables.
-  // function loadTables(fusionUrl, schemaCallback) {
-  //   var sql = { sql:'show tables in default' };
-  //   postToCatalogAPI(fusionUrl, '/catalog/fusion/query', sql)
-  //     .then(function success(data) {
-  //       var tables = [];
-  //       data.forEach(function(t) {
-  //         tables.push({id:t.tableName, alias:t.tableName}); 
-  //       });
-  //       tables.sort(function(lhs,rhs){return lhs.id.localeCompare(rhs.id);});
-  //       return tables;
-  //     }, function failure(err) {
-  //       console.error('Error loading tables from Catalog API, err =', err);
-  //     })
-  //     .then(function success(data) {
-  //       var schemas = [];
-  //       data.forEach(function(table) {
-  //         schemas.push(describeTable(fusionUrl, table));
-  //       });
-  //       Promise.all(schemas).then(function(data) {
-  //         schemaCallback(data);
-  //       });
-  //     });
-  // }
 
   // Load Fusion Tables
   function loadFusionTables(fusionUrl) {
