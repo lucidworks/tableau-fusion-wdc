@@ -114,6 +114,9 @@
 
     // Load Tables button
     $('#loadTablesButton').click(function() {
+      // Disable the button until loading is finished to prevent multiple clicks
+      $('#loadTablesButton').prop('disabled', true);
+
       // Clear status labels
       $('#loadTablesSuccess').css('display', 'none');
       $('#loadTablesFail').css('display', 'none');
@@ -268,14 +271,18 @@
               .attr('aria-valuenow', 100)
               .text('100%');
             // Set one second delay to hide the progress bar for a nice visual ;)
+            // And re-enable the button.
             setTimeout(function() {
               $('.progress').css('display', 'none');
+              $('#loadTablesButton').prop('disabled', false);
             }, 1000);
           });
         })
         .fail(function() {
           console.error('Error loading tables.');
           $('#loadTablesFail').css('display', '');
+          // Re-enable the button
+          $('#loadTablesButton').prop('disabled', false);
         });
     }); // End of Load Tables button
 
