@@ -94,13 +94,49 @@
       // By returning oboe.drop, the parsed JSON obj will be freed,
       // allowing it to be garbage collected.
       return oboe.drop;
-    }).done(function(tableData) {
+    })
+    .done(function(tableData) {
       doneCallback();
-    }).fail(function(err) {
+    })
+    .fail(function(err) {
       // TODO this could fail due to HTTP error 401 Unauthorized sometimes.
-      // Need to FIX!
-
-      tableau.abortWithError("Load data for "+tableName+" failed due to: ("+err.statusCode+") "+err.body);
+      if (err.statusCode === 401) {  // Try to do auth and retry getting data
+        console.warn('Unauthorized request, trying to login with the input username and password...');
+        return doAuth(config.fusionUrl, tableau.username, tableau.password, config.realmName)
+          .then(function() {
+            console.info('Retrying getting data from Fusion...');
+            oboe({
+              url: url,
+              method: 'GET',
+              withCredentials: true
+            })
+            .node('![*]', function(row) {
+              var tabRow = {};
+              for (var c=0; c < cols.length; c++) {
+                var col = cols[c].id;
+                var enc = cols[c].enc;
+                var colData = row[col];
+                if (colData) {
+                  tabRow[enc] = Array.isArray(colData) ? colData.join(',') : colData;
+                } else {
+                  tabRow[enc] = null; // this avoids Tableau logging about a missing column entry in the row
+                }
+              }
+              table.appendRows([tabRow]);      
+              // By returning oboe.drop, the parsed JSON obj will be freed,
+              // allowing it to be garbage collected.
+              return oboe.drop;
+            })
+            .done(function(tableData) {
+              doneCallback();
+            })
+            .fail(function(err2) {
+              tableau.abortWithError("Load data for "+tableName+" failed due to: ("+err2.statusCode+") "+err2.body);
+            });
+          });
+      } else {
+        tableau.abortWithError("Load data for "+tableName+" failed due to: ("+err.statusCode+") "+err.body);
+      }
     });
   };
 
@@ -116,7 +152,6 @@
     $('#loadTablesButton').click(function() {
       // Disable the button until loading is finished to prevent multiple clicks
       $('#loadTablesButton').prop('disabled', true);
-
       // Clear status labels
       $('#loadTablesSuccess').css('display', 'none');
       $('#loadTablesFail').css('display', 'none');
@@ -670,29 +705,29 @@
   }
 
   // This function is used in getSchema() to load selected Fusion tables.
-  function loadTables(fusionUrl, schemaCallback) {
-    var sql = { sql:'show tables in default' };
-    postToCatalogAPI(fusionUrl, '/catalog/fusion/query', sql)
-      .then(function success(data) {
-        var tables = [];
-        data.forEach(function(t) {
-          tables.push({id:t.tableName, alias:t.tableName}); 
-        });
-        tables.sort(function(lhs,rhs){return lhs.id.localeCompare(rhs.id);});
-        return tables;
-      }, function failure(err) {
-        console.error('Error loading tables from Catalog API, err =', err);
-      })
-      .then(function success(data) {
-        var schemas = [];
-        data.forEach(function(table) {
-          schemas.push(describeTable(fusionUrl, table));
-        });
-        Promise.all(schemas).then(function(data) {
-          schemaCallback(data);
-        });
-      });
-  }
+  // function loadTables(fusionUrl, schemaCallback) {
+  //   var sql = { sql:'show tables in default' };
+  //   postToCatalogAPI(fusionUrl, '/catalog/fusion/query', sql)
+  //     .then(function success(data) {
+  //       var tables = [];
+  //       data.forEach(function(t) {
+  //         tables.push({id:t.tableName, alias:t.tableName}); 
+  //       });
+  //       tables.sort(function(lhs,rhs){return lhs.id.localeCompare(rhs.id);});
+  //       return tables;
+  //     }, function failure(err) {
+  //       console.error('Error loading tables from Catalog API, err =', err);
+  //     })
+  //     .then(function success(data) {
+  //       var schemas = [];
+  //       data.forEach(function(table) {
+  //         schemas.push(describeTable(fusionUrl, table));
+  //       });
+  //       Promise.all(schemas).then(function(data) {
+  //         schemaCallback(data);
+  //       });
+  //     });
+  // }
 
   // Load Fusion Tables
   function loadFusionTables(fusionUrl) {
