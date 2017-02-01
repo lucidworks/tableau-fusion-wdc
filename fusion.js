@@ -20,7 +20,6 @@
   var myConnector = tableau.makeConnector();
 
   myConnector.init = function(initCallback) {
-    console.info('init() tableau =', tableau);
     var config = getTableauConnectionData();
 
     initCallback();
@@ -28,6 +27,17 @@
     if (tableau.phase === tableau.phaseEnum.interactivePhase) {
       if (config.fusionUrl) {
         $('#fusionUrl').val(config.fusionUrl);
+      }
+      if (config.realmName) {
+        $('#fusionRealm').val(config.realmName);
+      }
+      if (tableau.username) {
+        $('#fusionUsername').val(tableau.username);
+        // Enable Load Tables button
+        $('#loadTablesButton').prop('disabled', false);
+      }
+      if (tableau.password) {
+        $('#fusionPassword').val(tableau.password);
       }
     }
   };
@@ -145,6 +155,8 @@
 
     // Load Tables button
     $('#loadTablesButton').click(function() {
+      // Clear table list before loading
+      $('#fusionTables').empty();
       // Disable the button until loading is finished to prevent multiple clicks
       $('#loadTablesButton').prop('disabled', true);
       // Clear status labels
@@ -164,10 +176,6 @@
       tableau.password = $('#fusionPassword').val();
       config.realmName = $('#fusionRealm').val();
       setTableauConnectionData(config);
-
-      // Clear table list before loading
-      var fusionTables = $('#fusionTables');
-      fusionTables.html('');
 
       loadFusionTables(config.fusionUrl)
         .then(function(data) {
