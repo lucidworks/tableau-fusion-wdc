@@ -196,7 +196,7 @@
                   '<td>' + table.tableName + '</td>' +
                   '<td>Solr</td>' +
                   '<td id="' + totalRowsColumnId + '">' + totalRows + '</td>' +  // Get total rows
-                  '<td>' + '<input type="text" placeholder="plot_txt_en:love" id="' + filtersColumnId + '">' + '</td>' +
+                  '<td>' + '<input type="text" id="' + filtersColumnId + '">' + '</td>' +
                   '<td>' + '<input class="sample" type="number" min="1" max="100" placeholder="10" id="' + sampleColumnId + '">' + '</td>' +
                   '<td class="max-rows" id="' + maxRowsColumnId + '">' + maxRows + '</td>' +
                   '</tr>'
