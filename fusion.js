@@ -2,7 +2,6 @@
   'use strict';
   
   var API_APOLLO = '/api/apollo';
-  var API_V1 = '/api/v1';
   var DEFAULT_MAX_ROWS = 10000;
   // Selected Fusion tables in the list that will be sent to Tableau along with each table's settings
   var selectedTables = [];
@@ -19,6 +18,19 @@
 
   // Create the connector object
   var myConnector = tableau.makeConnector();
+
+  myConnector.init = function(initCallback) {
+    console.info('init() tableau =', tableau);
+    var config = getTableauConnectionData();
+
+    initCallback();
+
+    if (tableau.phase === tableau.phaseEnum.interactivePhase) {
+      if (config.fusionUrl) {
+        $('#fusionUrl').val(config.fusionUrl);
+      }
+    }
+  };
 
   myConnector.getSchema = function(schemaCallback) {
     console.info('getSchema()');
@@ -517,7 +529,11 @@
   }
 
   function getTableauConnectionData() {
-    return JSON.parse(tableau.connectionData);
+    var config = {};
+    if (tableau.connectionData) {
+      config = JSON.parse(tableau.connectionData);
+    }
+    return config;
   }
 
   function setTableauConnectionData(config) {
