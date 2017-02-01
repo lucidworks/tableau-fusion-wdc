@@ -28,7 +28,8 @@ Click on the Web Data Connector link under Connect and enter: [http://localhost:
 
 After a few seconds, you should see you tables listed on the left. At this point, you should be able to build worksheets and dashboards
 
-You're welcome to make changes ;-) Just edit `fusion.html` and `fusion.js` in the tableau-fusion-wdc directory. You can test them in the browser using the Tableau WDC Simulator:
+You're welcome to make changes ;-) Just edit `fusion.html` and `fusion.js` in the tableau-fusion-wdc directory.
+You can test them in the browser using the Tableau WDC Simulator (you need to download and setup Tableau WDC separately first):
 
 1. Open [http://localhost:8888/Simulator/index.html]()
 2. Put `../fusion.html` as the value for the Connector URL
