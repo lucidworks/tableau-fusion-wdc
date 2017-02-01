@@ -1,6 +1,6 @@
 # Fusion Web Data Connector for Tableau
 
-This repo contains Fusion connector code along with Tableau Web Data Connector (WDC) SDK. This connector is experimental (not officially supported) beta version. Please use github issues to raise any issues to our attention.
+This repo contains Fusion (download at http://lucidworks.com) connector code along with Tableau Web Data Connector (WDC) SDK. This connector is experimental (not officially supported) beta version. Please use github issues to raise any issues to our attention.
 
 Use the Tableau Web Data Connector (WDC) to connect to web data sources from Tableau. This is the repository for the Tableau WDC SDK, which includes developer samples and a simulator to help you create your connectors.
 
