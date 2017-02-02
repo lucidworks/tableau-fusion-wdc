@@ -22,8 +22,6 @@
   myConnector.init = function(initCallback) {
     var config = getTableauConnectionData();
 
-    initCallback();
-
     if (tableau.phase === tableau.phaseEnum.interactivePhase) {
       if (config.fusionUrl) {
         $('#fusionUrl').val(config.fusionUrl);
@@ -40,6 +38,8 @@
         $('#fusionPassword').val(tableau.password);
       }
     }
+
+    initCallback();
   };
 
   myConnector.getSchema = function(schemaCallback) {
@@ -59,6 +59,7 @@
         schemas.push(describeTable(config.fusionUrl, table));
       }
     });
+
     Promise.all(schemas).then(function(data) {
       // TODO print data[] as text individually
       // console.log('Promise.all data =', data);
@@ -176,6 +177,9 @@
       tableau.password = $('#fusionPassword').val();
       config.realmName = $('#fusionRealm').val();
       setTableauConnectionData(config);
+
+      // Clear selectedTables
+      selectedTables = [];
 
       loadFusionTables(config.fusionUrl)
         .then(function(data) {
@@ -450,10 +454,10 @@
         fusionUrl = 'http://localhost:8764';
       }
       config.fusionUrl = fusionUrl;
+      config.realmName = $('#fusionRealm').val();
       // Store credentials in tableau for easy access later
       tableau.username = $('#fusionUsername').val();
       tableau.password = $('#fusionPassword').val();
-      config.realmName = $('#fusionRealm').val();
       config.changedOn = new Date();  // This ensures Tableau always refreshes the table list from the server on edit
       config.selectedTables = [];  // This array will only store selected tables
       selectedTables.forEach(function(table) {
